@@ -1,0 +1,153 @@
+import { TemplateTypeEnum } from './waylineEnus';
+export interface WaylineCreateExt {
+	waylinePointHeightMode: 'hb' | 'xdqfd' | 'xddm'; //（EGM96海拔高度/相对起飞点高度/AGL相对地面高度）
+	orientedPhotoMode: 'normalPhoto' | 'lowLightSmartShooting';
+	homeCoordinate?: { longitude: number; latitude: number; height?: number };
+}
+// 确认：Furion 的 ApiDescriptionSettings(string) 重载实为 params string[] groups，
+// 因此后端服务 DjiWaylineService 的路由前缀就是类名去掉 Service 后的小驼峰 → /api/djiWayline
+export interface WaylineCreateParams {
+	/** 航线主键Id（有值=编辑已有航线） */
+	id?: number;
+	/** 所属空间Id，为空时后端取当前用户的默认空间 */
+	workspaceId?: string;
+	waylineName: string;
+	templateType: TemplateTypeEnum;
+	templateStr: string;
+	droneModel: string;
+	domainTypeSubType: string;
+	acc?: string;
+	missionConfig: MissionConfig;
+	folder: Folder;
+}
+
+/** 提交给后端的完整载荷：编辑器数据 + 扩展参数 */
+export interface WaylineSubmitParams extends WaylineCreateParams {
+	ext: WaylineCreateExt;
+}
+
+/** 列表行 */
+export interface WaylineListItem {
+	id: number;
+	waylineName: string;
+	waylineType: number;
+	templateType: string;
+	templateStr: string;
+	drone: string;
+	droneModel: string;
+	acc?: string;
+	workspaceId?: string;
+	workspaceNickName?: string;
+	pointCount: number;
+	distance: number;
+	duration: number;
+	autoFlightSpeed: number;
+	executeHeightMode?: string;
+	takeOffSecurityHeight: number;
+	globalRTHHeight: number;
+	finishAction?: string;
+	kmzFileName?: string;
+	kmzFileUrl?: string;
+	createTime?: string;
+	createUserName?: string;
+	updateTime?: string;
+}
+
+/** 详情 */
+export interface WaylineDetail extends WaylineListItem {
+	domainTypeSubType?: string;
+	kmzFileId?: number;
+	kmzFilePath?: string;
+	/** 完整航线参数，用于回填编辑器 */
+	param: WaylineCreateParams;
+}
+
+/** 创建弹框中的航线类型卡片 */
+export interface WaylineTypeItem {
+	/** 卡片标题，同时也是落库的模板中文名称 */
+	templateStr: string;
+	/** 对应的 WPML 模板类型 */
+	templateType: TemplateTypeEnum;
+	icon: string;
+	cardStyle: string;
+	/** 是否已完成该类型的参数编辑与 KMZ 生成 */
+	supported: boolean;
+}
+
+export interface MissionConfig {
+	flyToWaylineMode: 'safely' | 'pointToPoint'; //飞向首航点模式  垂直爬升(安全模式)  or 倾斜爬升
+	takeOffSecurityHeight: number; //安全起飞高度
+	takeOffRefPointAGLHeight: number; //* 注：”参考起飞点“海拔高度，与“参考起飞点”中的椭球高度对应
+	globalTransitionalSpeed: number; //[1,15]全局航线过渡速度,* 注：飞行器飞往每条航线首航点的速度。航线任务中断时，飞行器从当前位置恢复至断点的速度。
+	finishAction: 'goHome' | 'noAction' | 'autoLand' | 'gotoFirstWaypoint';
+	autoRerouteInfoVal: boolean;
+}
+
+export interface Folder {
+	//全局航线飞行速度	[1,15] * 注：该元素定义了此模板生成的整段航线中，飞行器的目标飞行速度。如果额外定义了某航点的该元素，则局部定义会覆盖全局定义。
+	autoFlightSpeed: number;
+	//全局航点类型（全局航点转弯模式）
+	// coordinateTurn：协调转弯，不过点，提前转弯
+	// toPointAndStopWithDiscontinuityCurvature：直线飞行，飞行器到点停
+	// toPointAndStopWithContinuityCurvature：曲线飞行，飞行器到点停
+	// toPointAndPassWithContinuityCurvature：曲线飞行，飞行器过点不停
+	globalWaypointTurnMode: 'coordinateTurn' | 'toPointAndStopWithDiscontinuityCurvature' | 'toPointAndStopWithContinuityCurvature' | 'toPointAndPassWithContinuityCurvature';
+	gimbalPitchMode: 'manual' | 'usePointSetting';
+	globalWaypointHeadingParam: {
+		waypointHeadingMode: 'followWayline' | 'manually' | 'fixed';
+		waypointHeadingPathMode: 'clockwise' | 'counterClockwise' | 'followBadArc';
+	};
+	//如“<wpml:imageFormat>wide,ir</wpml:imageFormat>”
+	payloadParam: {
+		imageFormat: string[];
+	};
+	placemarks?: PointPlacemark[];
+}
+
+export interface PointPlacemark {
+	// num: number;
+	guid?: string;
+	point: string; //[0,1]0.123456,34.123456,100
+	executeHeight: number;
+	useGlobalTurnParam: boolean; //	是否使用全局航点类型（全局航点转弯模式）
+	waypointTurnParam?: {
+		waypointTurnMode?: 'coordinateTurn' | 'toPointAndStopWithDiscontinuityCurvature' | 'toPointAndStopWithContinuityCurvature' | 'toPointAndPassWithContinuityCurvature';
+		waypointTurnDampingDist?: number; //航点转弯截距，单位m米，范围[0,, 航段最大长度]
+	};
+	useGlobalHeadingParam: boolean; //是否使用全局偏航角模式参数
+	waypointHeadingParam?: {
+		waypointHeadingMode: 'followWayline' | 'manually' | 'fixed' | 'smoothTransition';
+		waypointHeadingAngle?: number; // 给定某航点的目标偏航角 当“wpml:waypointHeadingMode”为“smoothTransition”时必需
+		waypointHeadingPathMode: 'clockwise' | 'counterClockwise' | 'followBadArc';
+	};
+	flyToPointSpeed?: number; //[1,15]
+	actionsGroup?: ActionGroup[];
+}
+export interface ActionDataType {
+	label: string;
+	// value: string;
+	// actionTriggerType: 'reachPoint' | 'betweenAdjacentPoints' | 'multipleTiming' | 'multipleDistance';
+	actionFuncParam?: ActionGroup;
+	svg: (options: { color?: string; size?: number }) => string;
+}
+export interface ActionGroup {
+	// actionGroupId: number;
+	// actionGroupStartIndex: number;
+	// actionGroupEndIndex: number;
+	// actionGroupMode: string;
+	actionTrigger?: ActionTrigger;
+	actionId: number;
+	actionActuatorFunc: string;
+	actionValue: string;
+	actionActuatorFuncParam?: any;
+}
+export interface ActionTrigger {
+	//   reachPoint：到达航点时执行
+	// betweenAdjacentPoints：航段触发，均匀转云台
+	// multipleTiming：等时触发
+	// multipleDistance：等距触发
+	// * 注：“betweenAdjacentPoints”需配合动作"gimbalEvenlyRotate"使用，“multipleTiming” 配合动作 “takePhoto” 即可实现等时间隔拍照，“multipleDistance” 配合动作 “takePhoto” 即可实现等距离间隔拍照。
+	actionTriggerType: 'reachPoint' | 'betweenAdjacentPoints' | 'multipleTiming' | 'multipleDistance';
+	//单位 s或m	> 0  * 注：当“actionTriggerType”为“multipleTiming”时，该元素表示间隔时间，单位是s。当“actionTriggerType”为“multipleDistance”时，该元素表示间隔距离，单位是m。
+	actionTriggerParam: number;
+}

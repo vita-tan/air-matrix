@@ -1,0 +1,15 @@
+{
+  "name": "drone-local-services",
+  "private": true,
+  "version": "1.0.0",
+  "description": "本地联调服务：MQTT Broker (aedes) + RTMP/HTTP-FLV 流媒体 (node-media-server)，用于无人机管控平台空跑与接真机前验证",
+  "scripts": {
+    "mqtt": "node mqtt-broker.js",
+    "media": "node media-server.js"
+  },
+  "dependencies": {
+    "aedes": "^0.51.3",
+    "mqtt": "^5.16.1",
+    "node-media-server": "^2.7.4"
+  }
+}

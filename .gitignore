@@ -1,0 +1,47 @@
+# ============================================================
+#  air-matrix · 农业无人机智控系统
+#  注意：后端 Dji.Application/Configuration 内含 SM2 私钥、
+#  JWT 签名密钥、大疆 App License，属于敏感配置，禁止提交。
+#  ============================================================
+
+# ---- 上游仓库的 .git 备份（不提交）----
+**/.git.upstream/
+
+# ---- 依赖 / 构建产物 ----
+node_modules/
+dist/
+.vite/
+out/
+bin/
+obj/
+*.user
+*.suo
+
+# ---- 本地敏感配置（禁止提交）----
+dji_server/Dji.Application/Configuration/
+.env
+.env.*
+!.env.example
+
+# ---- 数据库 / 本地数据 / 日志 ----
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+dji_server/Dji.Web.Entry/db/
+dji_server/Dji.Web.Entry/logs/
+services/media/
+logs/
+*.log
+
+# ---- 临时文件 ----
+tmp/
+*.tmp
+
+# ---- 系统文件 ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- 保留：脱敏后的配置模板 ----
+!dji_server/docs/config-template/

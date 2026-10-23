@@ -1,0 +1,19 @@
+{
+  "//": "短信配置模板：SecretId/SecretKey/AccessKey 等请填写你自己的凭证，切勿把真实密钥提交到版本库",
+  "TencentSms": {
+    "SecretId": "",
+    "SecretKey": "",
+    "Region": "ap-guangzhou",
+    "SmsSdkAppId": "",
+    "SignName": "",
+    "TemplateId": ""
+  },
+  "SMS": {
+    "Aliyun": {
+      "AccessKeyId": "",
+      "AccessKeySecret": "",
+      "SignName": "", // 短信签名
+      "TemplateCode": "" // 短信模板
+    }
+  }
+}

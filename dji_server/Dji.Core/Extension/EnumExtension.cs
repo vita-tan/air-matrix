@@ -1,0 +1,262 @@
+﻿// 麻省理工学院许可证
+//
+// 版权所有 (c) 2021-2023 yanyi  联系电话/微信：18600766045  QQ：15100305
+//
+// 特此免费授予获得本软件的任何人以处理本软件的权利，但须遵守以下条件：在所有副本或重要部分的软件中必须包括上述版权声明和本许可声明。
+//
+// 软件按“原样”提供，不提供任何形式的明示或暗示的保证，包括但不限于对适销性、适用性和非侵权的保证。
+// 在任何情况下，作者或版权持有人均不对任何索赔、损害或其他责任负责，无论是因合同、侵权或其他方式引起的，与软件或其使用或其他交易有关。
+
+namespace Dji.Core;
+
+/// <summary>
+/// 枚举拓展
+/// </summary>
+public static class EnumExtension
+{
+    // 枚举显示字典缓存
+    private static readonly ConcurrentDictionary<Type, Dictionary<int, string>> EnumDisplayValueDict = new();
+
+    // 枚举值字典缓存
+    private static readonly ConcurrentDictionary<Type, Dictionary<int, string>> EnumNameValueDict = new();
+
+    // 枚举类型缓存
+    private static ConcurrentDictionary<string, Type> _enumTypeDict;
+
+    /// <summary>
+    /// 获取枚举对象Key与名称的字典（缓存）
+    /// </summary>
+    /// <param name="enumType"></param>
+    /// <returns></returns>
+    public static Dictionary<int, string> GetEnumDictionary(this Type enumType)
+    {
+        if (!enumType.IsEnum)
+            throw new ArgumentException("Type '" + enumType.Name + "' is not an enum.");
+
+        // 查询缓存
+        var enumDic = EnumNameValueDict.ContainsKey(enumType) ? EnumNameValueDict[enumType] : new Dictionary<int, string>();
+        if (enumDic.Count != 0)
+            return enumDic;
+        // 取枚举类型的Key/Value字典集合
+        enumDic = GetEnumDictionaryItems(enumType);
+
+        // 缓存
+        EnumNameValueDict[enumType] = enumDic;
+
+        return enumDic;
+    }
+
+    /// <summary>
+    /// 获取枚举对象Key与名称的字典
+    /// </summary>
+    /// <param name="enumType"></param>
+    /// <returns></returns>
+    private static Dictionary<int, string> GetEnumDictionaryItems(this Type enumType)
+    {
+        // 获取类型的字段，初始化一个有限长度的字典
+        var enumFields = enumType.GetFields(BindingFlags.Public | BindingFlags.Static);
+        Dictionary<int, string> enumDic = new(enumFields.Length);
+
+        // 遍历字段数组获取key和name
+        foreach (var enumField in enumFields)
+        {
+            var intValue = (int)enumField.GetValue(enumType);
+            enumDic[intValue] = enumField.Name;
+        }
+
+        return enumDic;
+    }
+
+    /// <summary>
+    /// 获取枚举类型key与描述的字典（缓存）
+    /// </summary>
+    /// <param name="enumType"></param>
+    /// <returns></returns>
+    /// <exception cref="Exception"></exception>
+    public static Dictionary<int, string> GetEnumDescDictionary(this Type enumType)
+    {
+        if (!enumType.IsEnum)
+            throw new ArgumentException("Type '" + enumType.Name + "' is not an enum.");
+
+        // 查询缓存
+        var enumDic = EnumDisplayValueDict.ContainsKey(enumType)
+            ? EnumDisplayValueDict[enumType]
+            : new Dictionary<int, string>();
+        if (enumDic.Count != 0)
+            return enumDic;
+        // 取枚举类型的Key/Value字典集合
+        enumDic = GetEnumDescDictionaryItems(enumType);
+
+        // 缓存
+        EnumDisplayValueDict[enumType] = enumDic;
+
+        return enumDic;
+    }
+
+    /// <summary>
+    /// 获取枚举类型key与描述的字典（没有描述则获取name）
+    /// </summary>
+    /// <param name="enumType"></param>
+    /// <returns></returns>
+    /// <exception cref="Exception"></exception>
+    private static Dictionary<int, string> GetEnumDescDictionaryItems(this Type enumType)
+    {
+        // 获取类型的字段，初始化一个有限长度的字典
+        var enumFields = enumType.GetFields(BindingFlags.Public | BindingFlags.Static);
+        Dictionary<int, string> enumDic = new(enumFields.Length);
+
+        // 遍历字段数组获取key和name
+        foreach (var enumField in enumFields)
+        {
+            var intValue = (int)enumField.GetValue(enumType);
+            var desc = enumField.GetDescriptionValue<DescriptionAttribute>();
+            enumDic[intValue] = desc != null && !string.IsNullOrEmpty(desc.Description) ? desc.Description : enumField.Name;
+        }
+
+        return enumDic;
+    }
+
+    /// <summary>
+    /// 从程序集中查找指定枚举类型
+    /// </summary>
+    /// <param name="assembly"></param>
+    /// <param name="typeName"></param>
+    /// <returns></returns>
+    public static Type TryToGetEnumType(Assembly assembly, string typeName)
+    {
+        // 枚举缓存为空则重新加载枚举类型字典
+        _enumTypeDict ??= LoadEnumTypeDict(assembly);
+
+        // 按名称查找
+        return _enumTypeDict.ContainsKey(typeName) ? _enumTypeDict[typeName] : null;
+    }
+
+    /// <summary>
+    /// 从程序集中加载所有枚举类型
+    /// </summary>
+    /// <param name="assembly"></param>
+    /// <returns></returns>
+    private static ConcurrentDictionary<string, Type> LoadEnumTypeDict(Assembly assembly)
+    {
+        // 取程序集中所有类型
+        var typeArray = assembly.GetTypes();
+
+        // 过滤非枚举类型，转成字典格式并返回
+        var dict = typeArray.Where(o => o.IsEnum).ToDictionary(o => o.Name, o => o);
+        ConcurrentDictionary<string, Type> enumTypeDict = new(dict);
+        return enumTypeDict;
+    }
+
+    /// <summary>
+    /// 获取枚举的Description
+    /// </summary>
+    /// <param name="value"></param>
+    /// <returns></returns>
+    public static string GetDescription(this System.Enum value)
+    {
+        return value.GetType().GetMember(value.ToString()).FirstOrDefault()?.GetCustomAttribute<DescriptionAttribute>()
+            ?.Description;
+    }
+
+    /// <summary>
+    /// 获取枚举的 <c>[Description]</c>。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 统一入口：项目同时引入 <c>Dji.Core.EnumExtension</c> 与 <c>NewLife.EnumHelper</c>，
+    /// 两者都提供同名 <c>GetDescription</c> 扩展方法，直接写扩展语法会触发 CS0121 二义性。
+    /// 各 Service 因此各自抄了一份 <c>Desc&lt;T&gt;</c> 私有包装 —— 现收敛为这一处静态方法，
+    /// 业务代码调用 <c>EnumExtension.Desc(value)</c> 即可，不再各自维护。
+    /// </para>
+    /// </remarks>
+    public static string Desc<T>(T value) where T : struct, System.Enum
+        => value.GetDescription();
+
+    /// <summary>
+    /// 取枚举描述；无描述时回退到枚举名（用于希望「永远有可读文本」的场景，如直播清晰度标签）。
+    /// </summary>
+    public static string DescOrName<T>(T value) where T : struct, System.Enum
+        => value.GetDescription() ?? value.ToString();
+
+    /// <summary>
+    /// 按枚举<b>数值</b>取描述；未知取值返回 <c>null</c> 而不是数字串。
+    /// </summary>
+    /// <remarks>
+    /// 返回 null 是为了让前端区分「设备给了没见过的值」与「本身就是空」——
+    /// 设备上报的枚举值可能领先于本平台的枚举定义（固件更新后新增取值）。
+    /// 收敛各 Service 里重复的 <c>Name(int?, Type)</c> 私有方法。
+    /// </remarks>
+    public static string Name(int? value, Type enumType)
+    {
+        if (!value.HasValue) return null;
+        return enumType.GetEnumDescDictionary().TryGetValue(value.Value, out var label) ? label : null;
+    }
+
+    /// <summary>
+    /// 获取枚举的Description
+    /// </summary>
+    /// <param name="value"></param>
+    /// <returns></returns>
+    public static string GetDescription(this object value)
+    {
+        return value.GetType().GetMember(value.ToString() ?? string.Empty).FirstOrDefault()
+            ?.GetCustomAttribute<DescriptionAttribute>()?.Description;
+    }
+
+    /// <summary>
+    /// 将枚举转成枚举信息集合
+    /// </summary>
+    /// <param name="type"></param>
+    /// <returns></returns>
+    public static List<EnumEntity> EnumToList(this Type type)
+    {
+        if (!type.IsEnum)
+            throw new ArgumentException("Type '" + type.Name + "' is not an enum.");
+        var arr = System.Enum.GetNames(type);
+        return arr.Select(sl =>
+        {
+            var item = System.Enum.Parse(type, sl);
+            return new EnumEntity
+            {
+                Name = item.ToString(),
+                Describe = item.GetDescription() ?? item.ToString(),
+                Value = item.GetHashCode()
+            };
+        }).ToList();
+    }
+
+    /// <summary>
+    /// 枚举ToList
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <param name="type"></param>
+    /// <returns></returns>
+    public static List<T> EnumToList<T>(this Type type)
+    {
+        if (!type.IsEnum)
+            throw new ArgumentException("Type '" + type.Name + "' is not an enum.");
+        var arr = System.Enum.GetNames(type);
+        return arr.Select(name => (T)System.Enum.Parse(type, name)).ToList();
+    }
+}
+
+/// <summary>
+/// 枚举实体
+/// </summary>
+public class EnumEntity
+{
+    /// <summary>
+    /// 枚举的描述
+    /// </summary>
+    public string Describe { set; get; }
+
+    /// <summary>
+    /// 枚举名称
+    /// </summary>
+    public string Name { set; get; }
+
+    /// <summary>
+    /// 枚举对象的值
+    /// </summary>
+    public int Value { set; get; }
+}
