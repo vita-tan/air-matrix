@@ -36,17 +36,17 @@
   "AppLicense": "",         // ← 待填：大疆开发者 App License
   "NtpServerHost": "ntp.aliyun.com",
   "NtpServerPort": 123,
-  "FileBaseUrl": "",        // ← 建议填 http://<本机IP>:5005（KMZ 下发用）
+  "FileBaseUrl": "http://192.168.3.116:5005",   // KMZ 下发用（机场需可达）
   "Live": {
     "Enabled": true,
-    "RtmpPushBaseUrl": "rtmp://127.0.0.1:1935/live",   // ← 接真机改成 rtmp://<本机IP>:1935/live
-    "FlvPlayBaseUrl": "http://127.0.0.1:8000/live",    // 浏览器与本机同机可用 127.0.0.1
-    "HlsPlayBaseUrl": "http://127.0.0.1:8000/live"
+    "RtmpPushBaseUrl": "rtmp://192.168.3.116:1935/live",   // 已配好：本机局域网IP
+    "FlvPlayBaseUrl": "http://192.168.3.116:8000/live",
+    "HlsPlayBaseUrl": "http://192.168.3.116:8000/live"
   }
 },
 "Mqtt": {
-  "Server": "127.0.0.1", "Port": 1883,
-  "Username": "JavaServer", "Password": "public"       // 后端连 broker 用，勿改端口
+  "Server": "127.0.0.1", "Port": 1883,           // 后端连本地broker，保持127.0.0.1
+  "Username": "JavaServer", "Password": "public"
 }
 ```
 
@@ -59,14 +59,20 @@
    - MQTT 地址：`<本机局域网IP>:1883`（如 `192.168.3.116:1883`）
    - 填写同一个 App ID / App Key / License
    绑定成功后，后端 broker 日志会看到机场 SN 的 `sys/product/+/status` 上线报文。
-3. **改推流地址**：把 `RtmpPushBaseUrl` 改为 `rtmp://<本机局域网IP>:1935/live`（机场从该地址推流，**不能用 127.0.0.1**）。`FileBaseUrl` 建议填 `http://<本机IP>:5005`。
-4. **放行防火墙**（管理员 PowerShell）：
-   ```powershell
-   New-NetFirewallRule -DisplayName "DJI-1883" -Direction Inbound -Protocol TCP -LocalPort 1883 -Action Allow
-   New-NetFirewallRule -DisplayName "DJI-1935" -Direction Inbound -Protocol TCP -LocalPort 1935 -Action Allow
-   New-NetFirewallRule -DisplayName "DJI-8000" -Direction Inbound -Protocol TCP -LocalPort 8000 -Action Allow
-   New-NetFirewallRule -DisplayName "DJI-5005" -Direction Inbound -Protocol TCP -LocalPort 5005 -Action Allow
+3. ~~**改推流地址**~~ ✅ **已完成（2026-10-24）**：`RtmpPushBaseUrl` = `rtmp://192.168.3.116:1935/live`，`FileBaseUrl` = `http://192.168.3.116:5005`，`Flv/HlsPlayBaseUrl` = `http://192.168.3.116:8000/live`。已用该地址端到端验证（ffmpeg 推流 → HTTP-FLV/HLS 拉流均正常）。
+   > 若机场在**另一网段**（接的是以太网 `10.19.128.123`），把这三处与 `FileBaseUrl` 里的 IP 换成 `10.19.128.123`，重启后端即可。
+4. **放行防火墙**（管理员 PowerShell）。一键脚本已备好，**右键"使用 PowerShell 运行"**：
    ```
+   E:\program\wurenji\drone-platform\setup-firewall.ps1
+   ```
+   等价的手动命令：
+   ```powershell
+   New-NetFirewallRule -DisplayName "DJI-MQTT-1883" -Direction Inbound -Protocol TCP -LocalPort 1883 -Action Allow -Profile Any
+   New-NetFirewallRule -DisplayName "DJI-RTMP-1935" -Direction Inbound -Protocol TCP -LocalPort 1935 -Action Allow -Profile Any
+   New-NetFirewallRule -DisplayName "DJI-Media-HTTP-8000" -Direction Inbound -Protocol TCP -LocalPort 8000 -Action Allow -Profile Any
+   New-NetFirewallRule -DisplayName "DJI-Backend-API-5005" -Direction Inbound -Protocol TCP -LocalPort 5005 -Action Allow -Profile Any
+   ```
+   > 当前网络 `tuhao1301` 为 **Public** 类型，默认阻止入站；上面用 `-Profile Any` 已覆盖。四个端口均已确认绑定 `0.0.0.0`，规则生效后机场即可访问。
 5. **NTP 校时**（机场与云端偏差 >30s 会拒绝立即任务）。机场侧已由 `NtpServerHost` 下发；本机建议也校时（管理员 PowerShell，本会话无权限执行）：
    ```powershell
    w32tm /config /manualpeerlist:"ntp.aliyun.com,0x9" /syncfromflags:manual /update
