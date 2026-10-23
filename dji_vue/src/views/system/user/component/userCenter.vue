@@ -31,7 +31,18 @@
 						</p>
 					</div>
 					<div class="image-signature">
-						<el-image :src="userInfos.signature" fit="contain" alt="电子签名" loading="lazy" style="width: 100%; height: 100%"> </el-image>
+						<el-image v-if="userInfos.signature" :src="userInfos.signature" fit="contain" alt="电子签名" loading="lazy" style="width: 100%; height: 100%">
+							<template #error>
+								<div class="signature-placeholder">
+									<el-icon><ele-Picture /></el-icon>
+									<span>签名图片加载失败</span>
+								</div>
+							</template>
+						</el-image>
+						<div v-else class="signature-placeholder">
+							<el-icon><ele-EditPen /></el-icon>
+							<span>暂未上传签名</span>
+						</div>
 					</div>
 					<el-button icon="ele-Edit" type="primary" @click="openSignDialog" v-auth="'sysFile:uploadSignature'"> 电子签名 </el-button>
 					<el-upload
@@ -372,6 +383,19 @@ defineExpose({ handleChangeSignFile });
 	background-color: #fff;
 	text-align: center;
 	vertical-align: middle;
-	border: solid 1px var(--el-border-color);
+	border: solid 1px var(--el-border-color);}
+.signature-placeholder {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	color: var(--el-text-color-placeholder);
+	font-size: 12px;
+	.el-icon {
+		font-size: 22px;
+	}
 }
 </style>

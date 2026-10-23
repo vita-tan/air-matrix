@@ -105,6 +105,7 @@ public class SysOpenAccessService : IDynamicApiController, ITransient
     /// 创建密钥
     /// </summary>
     /// <returns></returns>
+    [ApiDescriptionSettings(Name = "CreateSecret"), HttpPost]
     [DisplayName("创建密钥")]
     public Task<string> CreateSecret()
     {

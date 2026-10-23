@@ -7,6 +7,9 @@
 // 软件按“原样”提供，不提供任何形式的明示或暗示的保证，包括但不限于对适销性、适用性和非侵权的保证。
 // 在任何情况下，作者或版权持有人均不对任何索赔、损害或其他责任负责，无论是因合同、侵权或其他方式引起的，与软件或其使用或其他交易有关。
 
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+
 namespace Dji.Core;
 
 public static class ComputerUtil
@@ -103,6 +106,31 @@ public static class ComputerUtil
         return RuntimeInformation.IsOSPlatform(OSPlatform.OSX) || RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
     }
 
+    private static double _lastCpuValue = 0;
+    private static DateTime _lastCpuTime = DateTime.MinValue;
+
+    /// <summary>
+    /// 获取 CPU 使用率（%）。
+    /// 新版 Windows 已移除 wmic，改用 PerformanceCounter 原生读取（带 3 秒缓存，避免频繁采样）。
+    /// </summary>
+    public static double GetCpuUsagePercent()
+    {
+        if ((DateTime.Now - _lastCpuTime).TotalSeconds < 3) return _lastCpuValue;
+        try
+        {
+            using var pc = new PerformanceCounter("Processor", "% Processor Time", "_Total");
+            pc.NextValue(); // 首次采样为 0，丢弃
+            System.Threading.Thread.Sleep(400);
+            _lastCpuValue = Math.Round(pc.NextValue(), 1);
+        }
+        catch
+        {
+            _lastCpuValue = 0;
+        }
+        _lastCpuTime = DateTime.Now;
+        return _lastCpuValue;
+    }
+
     public static string GetCPURate()
     {
         string cpuRate;
@@ -113,8 +141,7 @@ public static class ComputerUtil
         }
         else
         {
-            string output = ShellUtil.Cmd("wmic", "cpu get LoadPercentage");
-            cpuRate = output.Replace("LoadPercentage", string.Empty).Trim();
+            cpuRate = GetCpuUsagePercent().ToString("F1");
         }
         return cpuRate;
     }
@@ -133,10 +160,9 @@ public static class ComputerUtil
         }
         else
         {
-            string output = ShellUtil.Cmd("wmic", "OS get LastBootUpTime/Value");
-            string[] outputArr = output.Split('=', (char)StringSplitOptions.RemoveEmptyEntries);
-            if (outputArr.Length == 2)
-                runTime = DateTimeUtil.FormatTime((DateTime.Now - outputArr[1].Split('.')[0].ParseToDateTime()).TotalMilliseconds.ToString().Split('.')[0].ParseToLong());
+            // 新版 Windows 已移除 wmic，改用 Environment.TickCount64 原生计算开机时长
+            var uptime = TimeSpan.FromMilliseconds(Environment.TickCount64);
+            runTime = DateTimeUtil.FormatTime((long)uptime.TotalMilliseconds);
         }
         return runTime;
     }
@@ -228,24 +254,46 @@ public class DiskInfo
 
 public class MemoryMetricsClient
 {
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GlobalMemoryStatusEx(ref MEMORYSTATUSEX lpBuffer);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MEMORYSTATUSEX
+    {
+        public uint dwLength;
+        public uint dwMemoryLoad;
+        public ulong ullTotalPhys;
+        public ulong ullAvailPhys;
+        public ulong ullTotalPageFile;
+        public ulong ullAvailPageFile;
+        public ulong ullTotalVirtual;
+        public ulong ullAvailVirtual;
+        public ulong ullAvailExtendedVirtual;
+    }
+
     /// <summary>
-    /// windows系统获取内存信息
+    /// windows系统获取内存信息。
+    /// 新版 Windows 已移除 wmic，改用 GlobalMemoryStatusEx 原生 API。
     /// </summary>
-    /// <returns></returns>
     public MemoryMetrics GetWindowsMetrics()
     {
-        string output = ShellUtil.Cmd("wmic", "OS get FreePhysicalMemory,TotalVisibleMemorySize /Value");
         var metrics = new MemoryMetrics();
-        var lines = output.Trim().Split('\n', (char)StringSplitOptions.RemoveEmptyEntries);
-        if (lines.Length <= 0) return metrics;
+        try
+        {
+            var st = new MEMORYSTATUSEX { dwLength = (uint)Marshal.SizeOf<MEMORYSTATUSEX>() };
+            if (!GlobalMemoryStatusEx(ref st)) return metrics;
 
-        var freeMemoryParts = lines[0].Split('=', (char)StringSplitOptions.RemoveEmptyEntries);
-        var totalMemoryParts = lines[1].Split('=', (char)StringSplitOptions.RemoveEmptyEntries);
-
-        metrics.Total = Math.Round(double.Parse(totalMemoryParts[1]) / 1024, 0);
-        metrics.Free = Math.Round(double.Parse(freeMemoryParts[1]) / 1024, 0);//m
-        metrics.Used = metrics.Total - metrics.Free;
-
+            var totalMb = Math.Round(st.ullTotalPhys / 1024.0 / 1024.0, 0);
+            var availMb = Math.Round(st.ullAvailPhys / 1024.0 / 1024.0, 0);
+            metrics.Total = totalMb;
+            metrics.Free = availMb;
+            metrics.Used = totalMb - availMb;
+        }
+        catch
+        {
+            // 忽略：返回空指标，由页面展示兜底
+        }
         return metrics;
     }
 
