@@ -7,6 +7,8 @@
 #   8000  HTTP-FLV / HLS       (browser pulls live video)
 #   5005  Backend API          (dock downloads KMZ, FileBaseUrl)
 #   8888  Frontend dev server  (optional, remote browser)
+#   9000  MinIO S3 API         (dock uploads photos/videos - MUST open, or no media returns)
+#   9001  MinIO console        (optional, only local browser)
 #
 # Usage: right-click this file -> "Run with PowerShell"
 #        (must be elevated / Administrator)
@@ -18,6 +20,8 @@ $ports = @{
     "DJI-Media-HTTP-8000"  = 8000
     "DJI-Backend-API-5005" = 5005
     "DJI-Frontend-8888"    = 8888
+    "DJI-MinIO-API-9000"   = 9000
+    "DJI-MinIO-Console-9001" = 9001
 }
 
 foreach ($name in $ports.Keys) {
