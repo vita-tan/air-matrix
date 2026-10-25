@@ -15,14 +15,14 @@ namespace Dji.Core.Entity;
 public class DjiDeviceCameraEnum : EntityAppBase
 {
 
-    [SugarColumn(ColumnDescription = "产品名称", Length = 20)]
+    [SugarColumn(ColumnDescription = "产品名称", Length = 128)]
     [Required]
     public string Name { get; set; }
 
-    [SugarColumn(ColumnDescription = "挂载设备ID", Length = 20,IsNullable =true)]
+    [SugarColumn(ColumnDescription = "挂载设备ID", Length = 128,IsNullable =true)]
     public long DeviceEnumId { get; set; }
 
-    [SugarColumn(ColumnDescription = "产品类型", Length = 20)]
+    [SugarColumn(ColumnDescription = "产品类型", Length = 128)]
     public string ProductType { get; set; }
 
     [SugarColumn(ColumnDescription = "领域")]
@@ -37,7 +37,7 @@ public class DjiDeviceCameraEnum : EntityAppBase
     [SugarColumn(ColumnDescription = "是否主云台", DefaultValue = "0")]
     public bool IsMainGimbal { get; set; }
 
-    [SugarColumn(ColumnDescription = "描述", Length = 2000, IsNullable = true)]
+    [SugarColumn(ColumnDescription = "描述", Length = 12800, IsNullable = true)]
     public string Desc { get; set; }
 
 

@@ -12,16 +12,16 @@ namespace Dji.Core.Entity;
 [SugarTable("DjiWorkspace", "工作空间"), SysTable]
 public class DjiWorkspace : EntityAppTenant
 {
-    [SugarColumn(ColumnDescription = "空间id", Length = 20, IsNullable = false)]
+    [SugarColumn(ColumnDescription = "空间id", Length = 128, IsNullable = false)]
     public string WorkspaceId { get; set; }
 
-    [SugarColumn(ColumnDescription = "空间名称", Length = 20, IsNullable = false)]
+    [SugarColumn(ColumnDescription = "空间名称", Length = 128, IsNullable = false)]
     public string WorkspaceName { get; set; }
 
-    [SugarColumn(ColumnDescription = "平台名称", Length = 20, IsNullable = false)]
+    [SugarColumn(ColumnDescription = "平台名称", Length = 128, IsNullable = false)]
     public string WorkspaceNickName { get; set; }
 
-    [SugarColumn(ColumnDescription = "绑定码", Length = 20, IsNullable = true)]
+    [SugarColumn(ColumnDescription = "绑定码", Length = 128, IsNullable = true)]
     public string WorkspaceBindCode { get; set; }
 
     [SugarColumn(IsNullable = true)]

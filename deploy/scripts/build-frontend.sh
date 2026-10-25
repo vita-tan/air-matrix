@@ -17,7 +17,9 @@ if [ ! -f .env.production ]; then
 fi
 
 echo "[build-frontend] 使用 node:20 容器构建（npm ci && npm run build）"
+# 本项目依赖 Cesium/ECharts/monaco 等大包，vite build 默认堆内存会 OOM，需放宽到 4GB
 docker run --rm \
+  -e NODE_OPTIONS=--max-old-space-size=4096 \
   -v "${ROOT}/dji_vue:/app" \
   -w /app \
   node:20 sh -c "npm ci && npm run build"

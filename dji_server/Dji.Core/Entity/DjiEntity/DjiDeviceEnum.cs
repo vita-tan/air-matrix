@@ -15,7 +15,7 @@ namespace Dji.Core.Entity;
 public class DjiDeviceEnum : EntityAppBase
 {
 
-    [SugarColumn(ColumnDescription = "产品名称", Length = 20)]
+    [SugarColumn(ColumnDescription = "产品名称", Length = 128)]
     [Required]
     public string Name { get; set; }
 
@@ -28,34 +28,34 @@ public class DjiDeviceEnum : EntityAppBase
     /// 给默认空串是为了兜底：新增种子数据时漏填只会得到一个空串，
     /// 而不会让整批种子插入撞 <c>NOT NULL constraint failed</c> 把启动流程打断。
     /// </remarks>
-    [SugarColumn(ColumnDescription = "型号", Length = 20)]
+    [SugarColumn(ColumnDescription = "型号", Length = 128)]
     [Required]
     public string Model { get; set; } = string.Empty;
 
-    //[SugarColumn(ColumnDescription = "分组所属", Length = 20)]
+    //[SugarColumn(ColumnDescription = "分组所属", Length = 128)]
     //[Required]
     //public string GroupName { get; set; }
 
 
-    //[SugarColumn(ColumnDescription = "挂载产品", Length = 20)]
+    //[SugarColumn(ColumnDescription = "挂载产品", Length = 128)]
     //public long ParentId { get; set; }
 
-    //[SugarColumn(ColumnDescription = "挂载产品名称", Length = 20)]
+    //[SugarColumn(ColumnDescription = "挂载产品名称", Length = 128)]
     //[Required]
     //public string ParentName { get; set; }
 
 
-    [SugarColumn(ColumnDescription = "领域", Length = 20)]
+    [SugarColumn(ColumnDescription = "领域", Length = 128)]
     public DomainEnum Domain { get; set; }
 
-    [SugarColumn(ColumnDescription = "主类型", Length = 20)]
+    [SugarColumn(ColumnDescription = "主类型", Length = 128)]
     public int Type { get; set; }
 
-    [SugarColumn(ColumnDescription = "子类型", Length = 20)]
+    [SugarColumn(ColumnDescription = "子类型", Length = 128)]
     public int SubType { get; set; }
 
 
-    [SugarColumn(ColumnDescription = "描述", Length = 2000, IsNullable = true)]
+    [SugarColumn(ColumnDescription = "描述", Length = 12800, IsNullable = true)]
     public string Desc { get; set; }
 
 

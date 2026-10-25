@@ -1,0 +1,9 @@
+FROM alpine:3.19
+# MinIO 官方 Docker Hub 镜像已下架，改用官方二进制自建镜像
+# 二进制为静态编译，无需 apk 装依赖（国内 alpine 源不通，跳过 apk add）
+COPY minio /usr/local/bin/minio
+RUN chmod +x /usr/local/bin/minio
+ENV TZ=Asia/Shanghai
+# 启动参数由 compose 的 command 提供（server /data --console-address :9001），
+# ENTRYPOINT 只保留二进制，避免与 command 拼接导致 "duplicate ellipses"
+ENTRYPOINT ["/usr/local/bin/minio"]

@@ -15,45 +15,45 @@ namespace Dji.Core.Entity;
 public class DjiDevice : EntityWorkspaceBase
 {
 
-    [SugarColumn(ColumnDescription = "sn号", Length = 20, IsTreeKey = true)]
+    [SugarColumn(ColumnDescription = "sn号", Length = 128, IsTreeKey = true)]
     [Required]
     public string Sn { get; set; }
 
     [SugarColumn(ColumnDescription = "空间ID", Length = 50, IsNullable = true)]
     public override string WorkspaceId { get; set; }
 
-    [SugarColumn(ColumnDescription = "设备模型，型号", Length = 20, IsNullable = true)]
+    [SugarColumn(ColumnDescription = "设备模型，型号", Length = 128, IsNullable = true)]
     public string Model { get; set; }
 
 
-    [SugarColumn(ColumnDescription = "父SN号", Length = 20, IsNullable = true)]
+    [SugarColumn(ColumnDescription = "父SN号", Length = 128, IsNullable = true)]
     public string ParentSn { get; set; }
 
 
-    [SugarColumn(ColumnDescription = "昵称", Length = 20, IsNullable = true)]
+    [SugarColumn(ColumnDescription = "昵称", Length = 128, IsNullable = true)]
     public string Nick { get; set; }
 
-    [SugarColumn(ColumnDescription = "网关设备的命名空间", Length = 20, IsNullable = true)]
+    [SugarColumn(ColumnDescription = "网关设备的命名空间", Length = 128, IsNullable = true)]
     public DomainEnum? Domain { get; set; }
 
-    [SugarColumn(ColumnDescription = "网关设备的产品类型", Length = 20, IsNullable = true)]
+    [SugarColumn(ColumnDescription = "网关设备的产品类型", Length = 128, IsNullable = true)]
     public int? Type { get; set; }
 
-    [SugarColumn(ColumnDescription = "网关子设备的产品子类型", Length = 20, IsNullable = true)]
+    [SugarColumn(ColumnDescription = "网关子设备的产品子类型", Length = 128, IsNullable = true)]
     public int? SubType { get; set; }
 
 
-    [SugarColumn(ColumnDescription = "连接网关设备的通道索引", Length = 20, IsNullable = true)]
+    [SugarColumn(ColumnDescription = "连接网关设备的通道索引", Length = 128, IsNullable = true)]
     public string Index { get; set; }
 
 
-    [SugarColumn(ColumnDescription = "网关版本", Length = 20, IsNullable = true)]
+    [SugarColumn(ColumnDescription = "网关版本", Length = 128, IsNullable = true)]
     public string ThingVersion { get; set; }
 
-    [SugarColumn(ColumnDescription = "固件版本", Length = 20, IsNullable = true)]
+    [SugarColumn(ColumnDescription = "固件版本", Length = 128, IsNullable = true)]
     public string FirmwareVersion { get; set; }
 
-    [SugarColumn(ColumnDescription = "描述", Length = 2000, IsNullable = true)]
+    [SugarColumn(ColumnDescription = "描述", Length = 12800, IsNullable = true)]
     public string Desc { get; set; }
 
     /// <summary>经度（未知时为 null，避免用 0 表达“未知”——(0,0) 是几内亚湾的合法坐标）</summary>
@@ -91,7 +91,7 @@ public class DjiDevice : EntityWorkspaceBase
     [SugarColumn(ColumnDescription = "绑定次数",DefaultValue ="0")]
     public int BindNum { get; set; }
 
-    [SugarColumn(ColumnDescription = "头像", Length = 200, IsNullable = true)]
+    [SugarColumn(ColumnDescription = "头像", Length = 1280, IsNullable = true)]
     public string AvatarUrl { get; set; }
 
 

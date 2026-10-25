@@ -5,8 +5,9 @@ FROM node:20-slim
 WORKDIR /app
 
 # 仅安装 aedes（MQTT broker 依赖）；net 为 Node 内置模块，无需安装
+# 使用国内 npm 镜像（node 镜像自带 CA，https 可用），避免 registry.npmjs.org 超时
 RUN npm init -y >/dev/null 2>&1 || true \
- && npm install aedes@^0.51.3 --omit=dev --no-audit --no-fund
+ && npm install aedes@^0.51.3 --registry=https://registry.npmmirror.com --omit=dev --no-audit --no-fund
 
 COPY mqtt-broker.js ./
 

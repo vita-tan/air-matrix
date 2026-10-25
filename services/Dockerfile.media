@@ -4,9 +4,11 @@ FROM node:20-slim
 
 WORKDIR /app
 
-# 安装 ffmpeg（HLS 兜底所需），使用 Debian 默认源
-RUN apt-get update \
- && apt-get install -y --no-install-recommends ffmpeg \
+# 安装 ffmpeg（HLS 兜底所需）；node:20-slim 无 ca-certificates，
+# 故 apt 源必须用 http（阿里云 http 源无需证书校验），否则 https 会报证书校验失败
+RUN sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g; s|http://security.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
 # 仅安装流媒体服务依赖（net 为 Node 内置模块，无需安装）

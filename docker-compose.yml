@@ -1,13 +1,15 @@
 # ============================================================
 #  air-matrix 无人机智控系统 · 生产编排（Docker Compose）
 # ------------------------------------------------------------
-#  公网开放端口：80/443/1883/1935（腾讯云安全组放行）
-#  仅内网端口：5005(backend) / 8000(media HTTP-FLV) / 9000,9001(MinIO) / 5432(PostgreSQL)
+#  ⚠️ 本服务器为多站点生产机：宿主机 nginx 已占用 80/443（homework / nongbao /
+#  crmappai / stock / zj-agr 等站点），certbot 已管理多张证书。
+#  因此本编排【不含 nginx / certbot】：由宿主机 nginx 为 air-matrix.crmappai.xyz
+#  做 TLS 终止与反向代理，容器仅以 127.0.0.1 端口暴露给宿主机 nginx：
+#     backend 127.0.0.1:5005 / media 127.0.0.1:8000 / minio 127.0.0.1:9000
+#  公网端口仅：1883(MQTT 机场) / 1935(RTMP 机场)。
+#  宿主机 nginx 配置见 /etc/nginx/conf.d/air-matrix.conf。
 #
 #  敏感配置经 deploy/.env + deploy/config/* 注入（均 gitignore，禁止提交）。
-#  运行前请先：cp deploy/.env.example deploy/.env 并填真实值；
-#             cp dji_server/docs/config-template/* deploy/config/ 并改真实值；
-#             bash deploy/scripts/build-frontend.sh 产出 dji_vue/dist。
 #  标准起停请用 deploy/scripts/up.sh / down.sh（会自动 source deploy/.env）。
 # ============================================================
 
@@ -33,11 +35,13 @@ services:
       start_period: 20s
     networks:
       - air-net
-    # 5432 不映射公网，仅内网互通
+    # 5432 不映射，仅内网互通
 
-  # ---------- MinIO（对象存储，仅内网，经 nginx /minio 反代） ----------
+  # ---------- MinIO（对象存储，仅 127.0.0.1，经宿主 nginx /minio 反代） ----------
   air-matrix-minio:
-    image: minio/minio:RELEASE.2025-07-23
+    build:
+      context: ./deploy/minio
+      dockerfile: Dockerfile.minio
     container_name: air-matrix-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -47,19 +51,24 @@ services:
       TZ: Asia/Shanghai
     volumes:
       - dji_minio:/data
+    ports:
+      # 仅宿主机 nginx 访问；9001 控制台不对外
+      - "127.0.0.1:9000:9000"
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      # 自建 minio 镜像不含 mc，改用 TCP 探测 9000 端口
+      test: ["CMD-SHELL", "nc -z localhost 9000 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 12
       start_period: 15s
     networks:
       - air-net
-    # 9000/9001 不映射公网，仅经 nginx 反代暴露 /minio
 
   # ---------- MinIO 初始化（一次性：建桶 + 匿名读策略 + djicloud 账号） ----------
   air-matrix-minio-init:
-    image: minio/mc:latest
+    build:
+      context: ./deploy/minio
+      dockerfile: Dockerfile.mc
     container_name: air-matrix-minio-init
     restart: "no"
     depends_on:
@@ -98,7 +107,7 @@ services:
     networks:
       - air-net
 
-  # ---------- 流媒体（node-media-server + ffmpeg，公网 1935 / 内网 8000） ----------
+  # ---------- 流媒体（node-media-server + ffmpeg，公网 1935 / 127.0.0.1:8000） ----------
   air-matrix-media:
     build:
       context: ./services
@@ -112,7 +121,8 @@ services:
       FFMPEG_PATH: ffmpeg
     ports:
       - "1935:1935"
-      # 8000 不映射公网，仅经 nginx /live 反代
+      # 8000 仅宿主机 nginx 访问（/live 反代）
+      - "127.0.0.1:8000:8000"
     volumes:
       - dji_hls:/app/media
     healthcheck:
@@ -123,7 +133,7 @@ services:
     networks:
       - air-net
 
-  # ---------- 后端 dji_server（.NET 10 多阶段，仅内网 5005） ----------
+  # ---------- 后端 dji_server（.NET 10 多阶段，仅 127.0.0.1:5005） ----------
   air-matrix-backend:
     build:
       context: ./dji_server
@@ -139,9 +149,11 @@ services:
         condition: service_healthy
     environment:
       TZ: Asia/Shanghai
-      # 数据库连接 / OSS / DJI / JWT 等均在挂载的 deploy/config 下
     volumes:
       - ./deploy/config:/app/Configuration:ro
+    ports:
+      # 仅宿主机 nginx 访问
+      - "127.0.0.1:5005:5005"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:5005/ -T 3 >/dev/null 2>&1 || exit 1"]
       interval: 15s
@@ -150,67 +162,14 @@ services:
       start_period: 60s
     networks:
       - air-net
-    # 5005 不映射公网，仅经 nginx 反代
-
-  # ---------- nginx（唯一公网 HTTP 入口：TLS 终止 + 静态 + 反代） ----------
-  air-matrix-nginx:
-    image: nginx:1.27-alpine
-    container_name: air-matrix-nginx
-    restart: unless-stopped
-    depends_on:
-      - air-matrix-backend
-      - air-matrix-media
-      - air-matrix-minio
-      - air-matrix-postgres
-      - air-matrix-mqtt
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-      - dji_certs:/etc/letsencrypt
-      - dji_www:/var/www/certbot
-      # 前端静态资源：由 build-frontend.sh 构建 dist 后写入 dji_dist 命名卷（只读挂载）
-      - dji_dist:/usr/share/nginx/html:ro
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost/ -T 3 >/dev/null 2>&1 || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-    networks:
-      - air-net
-
-  # ---------- certbot（Let's Encrypt，按需 run --rm） ----------
-  air-matrix-certbot:
-    image: certbot/certbot:latest
-    container_name: air-matrix-certbot
-    restart: "no"
-    depends_on:
-      - air-matrix-nginx
-    volumes:
-      - dji_certs:/etc/letsencrypt
-      - dji_www:/var/www/certbot
-    # entrypoint 固定为 certbot：`docker compose run --rm air-matrix-certbot certonly ...` 会覆盖 command。
-    # 默认 command 仅打印版本（`up -d` 时该容器启动即退出，不常驻）。
-    entrypoint: ["certbot"]
-    command: ["--version"]
-    networks:
-      - air-net
 
 volumes:
-  # 显式命名：便于备份脚本与前端 dist 拷贝脚本稳定引用（与 compose 项目名解耦）
   dji_pg:
     name: air_matrix_pg
   dji_minio:
     name: air_matrix_minio_data
   dji_hls:
     name: air_matrix_hls
-  dji_certs:
-    name: air_matrix_certs
-  dji_www:
-    name: air_matrix_www
-  dji_dist:
-    name: air_matrix_dist
 
 networks:
   air-net:

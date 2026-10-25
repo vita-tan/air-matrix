@@ -12,20 +12,20 @@ namespace Dji.Core.Entity;
 public class DjiDeviceMapping : EntityAppBase
 {
 
-    [SugarColumn(ColumnDescription = "主设备id", Length = 20)]
+    [SugarColumn(ColumnDescription = "主设备id", Length = 128)]
     [Required]
     public long MainId { get; set; }
 
-    [SugarColumn(ColumnDescription = "主设备id", Length = 20)]
+    [SugarColumn(ColumnDescription = "主设备id", Length = 128)]
     [Required]
     public long MappingId { get; set; } 
 
 
-    [SugarColumn(ColumnDescription = "主类型", Length = 20)]
+    [SugarColumn(ColumnDescription = "主类型", Length = 128)]
     public DomainEnum MainDomain { get; set; } 
 
 
-    [SugarColumn(ColumnDescription = "扩展", Length = 2000, IsNullable = true)]
+    [SugarColumn(ColumnDescription = "扩展", Length = 12800, IsNullable = true)]
     public string Ext { get; set; }
 
 

@@ -7,7 +7,7 @@ namespace Dji.Core;
 [SugarTable("Feedback", "Feedback表")]
 public class Feedback : EntityAppTenant
 {
-    [SugarColumn(ColumnDescription = "内容", Length = 2000)]
+    [SugarColumn(ColumnDescription = "内容", Length = 12800)]
     [Required]
     public string Content { get; set; } = string.Empty;
 

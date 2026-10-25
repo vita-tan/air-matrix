@@ -59,3 +59,7 @@ dji_vue/.env.production
 # 反忽略：允许提交模板 / 示例（覆盖上面的 .env.* 通配）
 !deploy/.env.example
 !dji_vue/.env.production.example
+
+# MinIO/mc 二进制（体积大，部署时从 dl.minio.org.cn 下载）
+deploy/minio/minio
+deploy/minio/mc
