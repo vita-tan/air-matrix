@@ -23,3 +23,13 @@
 **/values.dev.yaml
 LICENSE
 README.md
+
+# ---- air-matrix 补充排除 ----
+# 排除本地 SQLite 数据目录与日志（已迁 PostgreSQL，不再需要 db 卷）
+**/db
+**/logs
+# 上游仓库的 .git 备份（避免打进镜像）
+**/.git.upstream
+# 排除任意 Python 脚本
+**/*.py
+# 注意：Plugins/ 必须保留，Dji.Core 通过 ProjectReference 引用 ../Plugins/*

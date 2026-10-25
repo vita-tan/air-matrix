@@ -1,0 +1,8 @@
+%% 任务依赖图（交付工程师）· v2（含 PostgreSQL 迁移）
+graph TD
+  T01[T01 基础设施与编排文件<br/>P0 · compose/Dockerfile/nginx/postgres-init/.env.example/脚本] --> T02[T02 后端配置与OSS PublicBaseUrl/代码修正<br/>P0 · Dji公网/Upload/PublicBaseUrl/JWT/SM2/SysMenuSeedData]
+  T01 --> T03[T03 中间件容器化<br/>P1 · mqtt鉴权/media+ffmpeg/minio桶]
+  T01 --> T04[T04 数据库迁移 PostgreSQL<br/>P0 · postgres容器/init.sql/Database.json改PG/Npgsql/CodeFirst风险]
+  T02 --> T05[T05 前端构建+上线/HTTPS/接真机<br/>P0 · up -d + certbot + 防火墙 + 全链路验证]
+  T03 --> T05
+  T04 --> T05

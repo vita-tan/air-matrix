@@ -23,14 +23,19 @@
     "EnableMd5": true // 启用文件MDF5验证-防止重复上传
   },
   "OSSProvider": {
-    "IsEnable": false,
+    "IsEnable": true, // ⛔ 生产改为 true 并填真实 AK/SK
     "Provider": "Minio", // Invalid/Minio/Aliyun/QCloud/Qiniu/HuaweiCloud
-    "Endpoint": "oss.dji.server",
-    "Region": "CN_South",
-    "AccessKey": "<OSS_ACCESS_KEY>",
-    "SecretKey": "<OSS_SECRET_KEY>",
-    "IsEnableHttps": true,
+    // ⛔ 内网 Endpoint：compose 内网服务名 + 9000，仅后端服务端 SDK 直连（9000 不映射公网）
+    "Endpoint": "air-matrix-minio:9000",
+    "Region": "us-east-1", // MinIO 默认 region
+    "AccessKey": "<OSS_ACCESS_KEY>", // MinIO 上传账号（deploy/minio/init.sh 创建的 djicloud）
+    "SecretKey": "<OSS_SECRET_KEY>", // ⛔ 真实值来自 deploy/.env 的 MINIO_SECRET_KEY
+    "IsEnableHttps": false, // 内网明文通信（nginx 在外层做 HTTPS 终止）
     "IsEnableCache": true,
-    "Bucket": "juai.test"
+    "Bucket": "dji-media", // 固定桶名，由 deploy/minio/init.sh 创建
+    // 【v2.1 新增】对外公开基址：nginx 把 MinIO 反代成 /minio path-style 的公网 HTTPS 地址。
+    // 机场直传 / 浏览器预览 / 预签名 URL 全部以此基址为前缀，绝不暴露内网 Endpoint。
+    // 留空则退回内网直拼（仅本地联调）。生产填：https://air-matrix.crmappai.xyz/minio
+    "PublicBaseUrl": "https://air-matrix.crmappai.xyz/minio"
   }
 }

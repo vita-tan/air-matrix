@@ -1,0 +1,20 @@
+# MQTT 镜像：aedes（生产加固版，env 校验账号口令）
+# 构建上下文：services/   dockerfile：Dockerfile.mqtt
+FROM node:20-slim
+
+WORKDIR /app
+
+# 仅安装 aedes（MQTT broker 依赖）；net 为 Node 内置模块，无需安装
+RUN npm init -y >/dev/null 2>&1 || true \
+ && npm install aedes@^0.51.3 --omit=dev --no-audit --no-fund
+
+COPY mqtt-broker.js ./
+
+# 账号口令由 deploy/.env 注入；留空则退回放行任意凭证（本地联调兼容）
+ENV MQTT_PORT=1883 \
+    MQTT_USERNAME="" \
+    MQTT_PASSWORD=""
+
+EXPOSE 1883
+
+ENTRYPOINT ["node", "mqtt-broker.js"]

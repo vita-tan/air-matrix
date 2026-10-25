@@ -1,0 +1,67 @@
+%% 部署拓扑图（组件 + 网络流向）· air-matrix.crmappai.xyz · v2(PG + MinIO方案A)
+flowchart TB
+  subgraph Internet[公网 / 互联网]
+    Dock[大疆机场 / 飞机 DJI Dock]
+    Browser[浏览器 · 终端用户]
+  end
+
+  subgraph Host[云服务器 Linux · Docker Compose 网络 air-net]
+    NW[nginx :80/:443<br/>HTTPS终止 + 静态dist + 反代]
+    BE[backend dji_server :5005<br/>仅内网]
+    MQ[mqtt aedes :1883<br/>公网映射]
+    MED[media node-media-server<br/>:1935 RTMP公网 / :8000 内网]
+    MINIO[minio :9000/:9001<br/>仅内网]
+    PG[postgres :5432<br/>仅内网]
+    INIT[minio-init mc / pg-init sql]
+    CERT[certbot<br/>Let's Encrypt]
+  end
+
+  Dock -->|MQTT air-matrix.crmappai.xyz:1883| MQ
+  Dock -->|RTMP 推流 rtmp://air-matrix.crmappai.xyz:1935/live| MED
+  Dock -->|HTTPS 直传媒体/下载KMZ| NW
+  Browser -->|HTTPS 443| NW
+
+  NW -->|/api /kapi /hubs /net /[Uu]pload| BE
+  NW -->|/live HTTP-FLV/HLS| MED
+  NW -->|/minio S3(path-style)| MINIO
+  BE -->|MQTT 内网| MQ
+  BE -->|OSS 内网 air-matrix-minio:9000| MINIO
+  BE -->|SQL 内网 :5432| PG
+  INIT -.建 dji-media 桶/匿名读/账号.-> MINIO
+  INIT -.建 dji_admin/dji_log 库.-> PG
+  CERT -.签发/续期(air-matrix.crmappai.xyz).-> NW
+
+%% 关键请求链路（时序）
+sequenceDiagram
+  participant Dock as 大疆机场
+  participant NG as nginx(443)
+  participant BE as backend
+  participant MQ as mqtt
+  participant MINIO as minio
+  participant MED as media
+  participant PG as postgres
+
+  Note over Dock,MQ: 设备上线 / 物模型交互（MQTT 3.1.1）
+  Dock->>MQ: CONNECT air-matrix.crmappai.xyz:1883 (Username/Password)
+  BE->>MQ: 订阅 9 个 thing/product 主题
+  MQ-->>BE: status/osd/state/events...
+
+  Note over Dock,MED: 直播推流
+  Dock->>MED: RTMP PUSh rtmp://air-matrix.crmappai.xyz:1935/live/<stream>
+  Browser->>NG: GET https://air-matrix.crmappai.xyz/live/<stream>.flv
+  NG->>MED: proxy_pass http://media:8000/live/<stream>.flv
+  MED-->>NG: FLV 流
+  NG-->>Browser: HTTPS FLV
+
+  Note over Dock,MINIO: 媒体回传（直传 / 预签名）
+  BE->>MINIO: 生成预签名 PUT URL (公开基址 https://air-matrix.crmappai.xyz/minio)
+  Dock->>NG: PUT https://air-matrix.crmappai.xyz/minio/dji-media/...
+  NG->>MINIO: proxy_pass http://minio:9000/dji-media/... (去/minio前缀)
+  Browser->>NG: GET https://air-matrix.crmappai.xyz/minio/dji-media/... (匿名下载)
+  NG->>MINIO: proxy_pass
+  MINIO-->>NG: 媒体文件
+  NG-->>Browser: HTTPS 媒体
+
+  Note over BE,PG: 业务数据（PostgreSQL）
+  BE->>PG: SELECT/INSERT（CodeFirst 已建表+种子）
+  PG-->>BE: 行数据

@@ -115,7 +115,12 @@ public class DjiStorageService(ILogger<DjiStorageService> logger, IOptions<OSSPr
         return new StorageConfigGetOutput
         {
             Bucket = _oss.Bucket,
-            Endpoint = NormalizeEndpoint(_oss.Endpoint),
+            // 下发给机场的直传 endpoint 必须是「机场侧可达」的公网地址：
+            // 配了 PublicBaseUrl 就用它（如 https://air-matrix.crmappai.xyz/minio），
+            // 否则退回内网 Endpoint（仅适合本机联调）。绝不把 air-matrix-minio:9000 下发到机场。
+            Endpoint = NormalizeEndpoint(_oss.PublicBaseUrl.IsNullOrWhiteSpace()
+                ? _oss.Endpoint
+                : _oss.PublicBaseUrl),
             Provider = MapProvider(_oss.Provider.ToString()),
             Region = _oss.Region ?? string.Empty,
             ObjectKeyPrefix = objectKeyPrefix ?? string.Empty,
@@ -142,11 +147,21 @@ public class DjiStorageService(ILogger<DjiStorageService> logger, IOptions<OSSPr
     {
         if (!IsEnabled || objectKey.IsNullOrWhiteSpace()) return null;
 
+        var key = objectKey.TrimStart('/');
+
+        // 公开基址优先：机场/前端经 nginx /minio 反代的公网 HTTPS 地址，
+        // 绝暴露内网 Endpoint（air-matrix-minio:9000）。公开基址已含桶所在路径前缀（如 /minio），
+        // 直接拼接 {PublicBaseUrl}/{bucket}/{key} 即可，由 nginx 去前缀反代到 MinIO。
+        if (!_oss.PublicBaseUrl.IsNullOrWhiteSpace())
+        {
+            var publicBase = _oss.PublicBaseUrl.Trim().TrimEnd('/');
+            return $"{publicBase}/{_oss.Bucket}/{key}";
+        }
+
         var scheme = _oss.IsEnableHttps ? "https" : "http";
         var endpoint = _oss.Endpoint.Trim().TrimEnd('/');
         // Endpoint 可能已带 scheme，去掉后再拼，避免出现 http://https://...
         endpoint = endpoint.Replace("https://", string.Empty).Replace("http://", string.Empty);
-        var key = objectKey.TrimStart('/');
 
         return MapProvider(_oss.Provider.ToString()) switch
         {
@@ -206,6 +221,24 @@ public class DjiStorageService(ILogger<DjiStorageService> logger, IOptions<OSSPr
         var path = uri.AbsolutePath.TrimStart('/');
         if (path.IsNullOrWhiteSpace()) return null;
 
+        // 公开基址前缀：nginx 反代会把公开 URL 变成 https://<domain>/minio/<bucket>/<key>，
+        // 其 AbsolutePath 为 minio/<bucket>/<key>。若配了 PublicBaseUrl，先把它自身的 path
+        // 前缀（如 minio/）剥掉，否则后面按 bucket 剥离会失败、整段被误当成 Key。
+        if (!_oss.PublicBaseUrl.IsNullOrWhiteSpace())
+        {
+            var publicBaseUri = TryCreateUri(_oss.PublicBaseUrl);
+            if (publicBaseUri != null)
+            {
+                var publicPath = publicBaseUri.AbsolutePath.Trim('/');
+                if (!publicPath.IsNullOrWhiteSpace())
+                {
+                    var publicPrefix = publicPath + "/";
+                    if (path.StartsWith(publicPrefix, StringComparison.OrdinalIgnoreCase))
+                        path = path[publicPath.Length..].TrimStart('/');
+                }
+            }
+        }
+
         // 路径风格：剥掉首段的 bucket
         if (!_oss.Bucket.IsNullOrWhiteSpace())
         {
@@ -239,7 +272,10 @@ public class DjiStorageService(ILogger<DjiStorageService> logger, IOptions<OSSPr
             try
             {
                 var url = await client.PresignedGetObjectAsync(_oss.Bucket, objectKey, expiresSeconds);
-                if (!url.IsNullOrWhiteSpace()) return url;
+                if (!url.IsNullOrWhiteSpace())
+                    // 预签名地址由内网 Endpoint（air-matrix-minio:9000）生成，机场/浏览器不可达；
+                    // 配了 PublicBaseUrl 时改写为公网基址（https://air-matrix.crmappai.xyz/minio/...）。
+                    return RewriteToPublicUrl(url);
             }
             catch (Exception ex)
             {
@@ -343,5 +379,48 @@ public class DjiStorageService(ILogger<DjiStorageService> logger, IOptions<OSSPr
         }
 
         return (_oss.IsEnableHttps ? "https://" : "http://") + value;
+    }
+
+    /// <summary>
+    /// 把由<b>内网 Endpoint</b>生成的预签名/直链 URL 改写为<b>公网公开基址</b>形式。
+    /// </summary>
+    /// <remarks>
+    /// 对象存储客户端按 <c>Upload.json</c> 的 <c>Endpoint</c>（如 <c>air-matrix-minio:9000</c>）签名，
+    /// 产出的 URL 形如 <c>http://air-matrix-minio:9000/dji-media/key?Expires=...</c>，
+    /// 机场/浏览器无法直连。配了 <c>PublicBaseUrl</c>（如 <c>https://air-matrix.crmappai.xyz/minio</c>）时，
+    /// 仅替换「协议+主机+路径前缀」部分，保留原 path 中桶与对象 Key 以及查询串：
+    /// <c>https://air-matrix.crmappai.xyz/minio/dji-media/key?Expires=...</c>，经 nginx 去 <c>/minio</c> 反代到 MinIO。
+    /// 未配置 PublicBaseUrl 或解析失败时原样返回（本地联调）。
+    /// </remarks>
+    private string RewriteToPublicUrl(string internalUrl)
+    {
+        if (_oss.PublicBaseUrl.IsNullOrWhiteSpace() || internalUrl.IsNullOrWhiteSpace())
+            return internalUrl;
+
+        try
+        {
+            var internalUri = new Uri(internalUrl);
+            var publicBaseUri = TryCreateUri(_oss.PublicBaseUrl);
+            if (publicBaseUri == null) return internalUrl;
+
+            var publicOrigin = publicBaseUri.GetLeftPart(UriPartial.Authority); // https://air-matrix.crmappai.xyz
+            var publicPath = publicBaseUri.AbsolutePath.TrimEnd('/');           // /minio
+            var rewritten = publicOrigin + publicPath + internalUri.AbsolutePath + internalUri.Query;
+            return rewritten;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "预签名 URL 改写为公网基址失败，退回原始内网地址：{Url}", internalUrl);
+            return internalUrl;
+        }
+    }
+
+    /// <summary>
+    /// 安全地把字符串解析为绝对 URI（失败返回 null，不抛异常）。
+    /// </summary>
+    private static Uri TryCreateUri(string raw)
+    {
+        if (raw.IsNullOrWhiteSpace()) return null;
+        return Uri.TryCreate(raw.Trim(), UriKind.Absolute, out var uri) ? uri : null;
     }
 }

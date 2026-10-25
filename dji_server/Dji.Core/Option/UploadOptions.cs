@@ -53,4 +53,19 @@ public sealed class OSSProviderOptions : OSSOptions, IConfigurableOptions
     /// 例：阿里云 1.只能包括小写字母，数字，短横线（-）2.必须以小写字母或者数字开头 3.长度必须在3-63字节之间
     /// </summary>
     public string Bucket { get; set; }
+
+    /// <summary>
+    /// 对象存储的<b>对外公开基址</b>（可选）。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 生产环境通过 nginx 反代把 MinIO(9000) 暴露成公网 HTTPS 地址时使用：
+    /// 例如 <c>https://air-matrix.crmappai.xyz/minio</c>。
+    /// 一旦配置，<c>DjiStorageService</c> 对外拼接的媒体访问地址、
+    /// 下发给机场的直传 endpoint、以及预签名 URL 都会以此基址为前缀，
+    /// <b>绝不</b>把内网 <c>Endpoint</c>（如 <c>air-matrix-minio:9000</c>）暴露给前端/机场。
+    /// 留空则维持原有「内网 Endpoint 直拼」逻辑（本地联调场景）。
+    /// </para>
+    /// </remarks>
+    public string PublicBaseUrl { get; set; } = string.Empty;
 }

@@ -288,7 +288,11 @@ public static class SqlSugarSetup
         // 初始化/创建数据库
         if (config.DbSettings.EnableInitDb)
         {
-            if (config.DbType != SqlSugar.DbType.Oracle)
+            // PostgreSQL / Oracle 不允许由 ORM 在「连接目标库」时自动建库：
+            //  - PG 要求目标库先存在，init.sql（postgres 容器 /docker-entrypoint-initdb.d）已预建 dji_admin / dji_log；
+            //  - 若仍由 SqlSugar 执行 CREATE DATABASE，会与已存在的库冲突，或因连不上目标库而失败。
+            // 故 PG/Oracle 跳过自动建库，仅由 CodeFirst 在已存在的库上建表；SQLite / MySQL / SqlServer 仍可自动建库。
+            if (config.DbType != SqlSugar.DbType.Oracle && config.DbType != SqlSugar.DbType.PostgreSQL)
                 dbProvider.DbMaintenance.CreateDatabase();
         }
 

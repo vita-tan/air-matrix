@@ -45,3 +45,17 @@ desktop.ini
 
 # ---- 保留：脱敏后的配置模板 ----
 !dji_server/docs/config-template/
+
+# ============================================================
+#  部署相关：真实密钥/配置不入库，仅保留 *.example 模板
+# ============================================================
+# 真实环境变量（由 example 复制填充）
+deploy/.env
+# 真实后端配置（Database/Upload/Dji/JWT/App.json 等含密钥）
+deploy/config/
+# 真实前端生产变量（SM2 公钥等）
+dji_vue/.env.production
+
+# 反忽略：允许提交模板 / 示例（覆盖上面的 .env.* 通配）
+!deploy/.env.example
+!dji_vue/.env.production.example
