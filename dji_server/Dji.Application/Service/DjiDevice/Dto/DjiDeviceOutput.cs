@@ -96,6 +96,21 @@ public class DjiDeviceOutput
     public double? Altitude { get; set; }
 
     /// <summary>
+    /// 是否在线
+    /// </summary>
+    public bool IsOnline { get; set; }
+
+    /// <summary>
+    /// 最近在线时间
+    /// </summary>
+    public DateTime? LastOnlineTime { get; set; }
+
+    /// <summary>
+    /// 最近一次 OSD 时间
+    /// </summary>
+    public DateTime? LastOsdTime { get; set; }
+
+    /// <summary>
     /// bind_time
     /// </summary>
     public DateTime? BindTime { get; set; }

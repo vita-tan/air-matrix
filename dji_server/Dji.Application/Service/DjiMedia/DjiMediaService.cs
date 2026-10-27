@@ -363,7 +363,8 @@ public class DjiMediaService : IDynamicApiController, ITransient
 
         foreach (var item in items)
         {
-            item.DockNick = nickMap.GetValueOrDefault(item.DockSn);
+            // DockSn 可能为空（非机场回传的影像），Dictionary 的空键查询会抛 ArgumentNullException
+            item.DockNick = item.DockSn.IsNullOrWhiteSpace() ? null : nickMap.GetValueOrDefault(item.DockSn);
             item.FlightJobName = tasks.FirstOrDefault(m => m.FlightId == item.FlightId)?.JobName;
         }
 

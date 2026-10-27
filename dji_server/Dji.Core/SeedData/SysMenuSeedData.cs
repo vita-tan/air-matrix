@@ -91,6 +91,11 @@ public class SysMenuSeedData : ISqlSugarEntitySeedData<SysMenu>
             new SysMenu{ Id=46369910000011, Pid=46369910000001, Title="媒体库", Path="/media/library", Name="mediaLibrary", Component="/main/djiMedia/index", Icon="ele-Picture", Type=MenuTypeEnum.Menu, IsKeepAlive=true, CreateTime=DateTime.Parse("2026-09-28 21:00:00"), OrderNo=100 },
             new SysMenu{ Id=46369910000012, Pid=46369910000001, Title="直播中心", Path="/media/live", Name="mediaLive", Component="/main/djiLive/index", Icon="ele-VideoPlay", Type=MenuTypeEnum.Menu, IsKeepAlive=true, CreateTime=DateTime.Parse("2026-09-28 21:00:00"), OrderNo=110 },
 
+            // 图像管理：全屏遥感影像地图（在线无人机 / 图层 / 影像叠加）。
+            // 需要在左侧栏一键直达，因此做成顶级菜单而不是媒体中心的子页；
+            // 页面自带 Cesium Viewer，缓存下来会常驻一个 WebGL 上下文，故 IsKeepAlive=false。
+            new SysMenu{ Id=46369910000031, Pid=0, Title="图像管理", Path="/imagery", Name="imagery", Component="/main/imagery/index", Icon="ele-PictureRounded", Type=MenuTypeEnum.Menu, IsKeepAlive=false, CreateTime=DateTime.Parse("2026-10-27 10:00:00"), OrderNo=135 },
+
             // 运维中心（P3）：HMS / 机场控制 / 固件升级 / 远程日志 / 自定义飞行区 / AirSense。
             // 这六项的共同点是「都在回答『设备现在到底怎么样』」——发现故障（HMS）、处置故障（控制、升级）、
             // 取证（日志、飞行区、AirSense），因此合在一个目录下，而不是散落到设备管理里。
