@@ -8,6 +8,7 @@
 // 在任何情况下，作者或版权持有人均不对任何索赔、损害或其他责任负责，无论是因合同、侵权或其他方式引起的，与软件或其使用或其他交易有关。
 
 using Dji.Core.Enum.DjiEnum.Media;
+using Microsoft.AspNetCore.Http;
 using System.ComponentModel.DataAnnotations;
 
 namespace Dji.Application.Service.DjiMedia.Dto;
@@ -74,5 +75,38 @@ public class MediaPrioritizeInput
 {
     /// <summary>协议 flight_id</summary>
     [Required(ErrorMessage = "任务ID不能为空")]
+    public string FlightId { get; set; }
+}
+
+/// <summary>手工上传影像输入（正射 / 多光谱成果导入，非机场回传）</summary>
+public class MediaUploadInput
+{
+    /// <summary>影像文件（jpg / jpeg / png / webp）</summary>
+    [Required(ErrorMessage = "请选择影像文件")]
+    public IFormFile File { get; set; }
+
+    /// <summary>所属工作空间</summary>
+    [Required(ErrorMessage = "缺少工作空间")]
+    public string WorkspaceId { get; set; }
+
+    /// <summary>影像中心经度（WGS84）</summary>
+    public double? Longitude { get; set; }
+
+    /// <summary>影像中心纬度（WGS84）</summary>
+    public double? Latitude { get; set; }
+
+    /// <summary>相对高度（米），用于估算贴地覆盖范围</summary>
+    public double? RelativeAltitude { get; set; }
+
+    /// <summary>绝对高度（米）</summary>
+    public double? AbsoluteAltitude { get; set; }
+
+    /// <summary>云台偏航角（度）</summary>
+    public double? GimbalYawDegree { get; set; }
+
+    /// <summary>拍摄时间，缺省为上传时间</summary>
+    public DateTime? MediaCreateTime { get; set; }
+
+    /// <summary>关联任务 ID（协议 flight_id），可空</summary>
     public string FlightId { get; set; }
 }

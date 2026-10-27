@@ -105,13 +105,22 @@
 
 			<div class="imagery-head">
 				<span>遥感影像 <em>{{ geoMediaCount }}</em></span>
-				<el-button text size="small" :disabled="!geoMediaCount" @click="toggleAllOverlays">
-					{{ allOverlayOn ? '清空叠加' : '全部叠加' }}
-				</el-button>
+				<span class="imagery-head-actions">
+					<el-button text size="small" @click="openUpload">
+						<el-icon><ele-UploadFilled /></el-icon>上传
+					</el-button>
+					<el-button text size="small" :disabled="!geoMediaCount" @click="toggleAllOverlays">
+						{{ allOverlayOn ? '清空叠加' : '全部叠加' }}
+					</el-button>
+				</span>
 			</div>
 
 			<el-scrollbar class="imagery-scroll">
-				<div v-if="!mediaRows.length" class="imagery-empty">暂无回传影像</div>
+				<div v-if="!mediaRows.length" class="imagery-empty" @click="openUpload">
+					<el-icon><ele-UploadFilled /></el-icon>
+					<p>暂无回传影像</p>
+					<span>点击上传正射 / 多光谱成果图</span>
+				</div>
 				<div
 					v-for="m in mediaRows"
 					:key="m.uid"
@@ -168,6 +177,55 @@
 				<el-button type="primary" :disabled="!previewRow || !hasGeo(previewRow)" @click="overlayFromPreview">叠加到地图</el-button>
 			</template>
 		</el-dialog>
+
+		<!-- 影像上传 -->
+		<el-dialog v-model="uploadVisible" title="上传影像" width="580px" top="7vh" append-to-body destroy-on-close>
+			<el-upload
+				class="upload-drop"
+				drag
+				:auto-upload="false"
+				:limit="1"
+				accept=".jpg,.jpeg,.png,.webp"
+				:file-list="uploadFileList"
+				:on-change="onUploadPick"
+				:on-remove="onUploadRemove"
+				:on-exceed="onUploadExceed"
+			>
+				<el-icon class="el-icon--upload"><ele-UploadFilled /></el-icon>
+				<div class="el-upload__text">拖拽图片到此处，或 <em>点击选择</em></div>
+				<template #tip>
+					<div class="el-upload__tip">支持 JPG / PNG / WebP，单张不超过 20MB；多光谱请先合成假彩色（如 NDVI）再导出</div>
+				</template>
+			</el-upload>
+
+			<el-form class="upload-form" label-width="86px" label-position="left">
+				<el-form-item label="中心经度" required>
+					<el-input-number v-model="uploadForm.longitude" :precision="6" :step="0.000001" :controls="false" placeholder="WGS84 经度，如 120.243500" />
+				</el-form-item>
+				<el-form-item label="中心纬度" required>
+					<el-input-number v-model="uploadForm.latitude" :precision="6" :step="0.000001" :controls="false" placeholder="WGS84 纬度，如 30.621500" />
+				</el-form-item>
+				<el-form-item label="相对高度">
+					<el-input-number v-model="uploadForm.relativeAltitude" :min="1" :max="1000" :step="10" controls-position="right" />
+					<span class="upload-unit">米，用于估算贴地范围</span>
+				</el-form-item>
+				<el-form-item label="偏航角">
+					<el-input-number v-model="uploadForm.gimbalYawDegree" :min="-180" :max="180" :step="1" controls-position="right" />
+					<span class="upload-unit">度</span>
+				</el-form-item>
+				<el-form-item label="拍摄时间">
+					<el-date-picker v-model="uploadForm.mediaCreateTime" type="datetime" placeholder="默认当前时间" value-format="YYYY-MM-DD HH:mm:ss" />
+				</el-form-item>
+				<el-form-item label="任务ID">
+					<el-input v-model="uploadForm.flightId" placeholder="可空，填写后媒体库可按任务筛选" clearable />
+				</el-form-item>
+			</el-form>
+
+			<template #footer>
+				<el-button @click="uploadVisible = false">取消</el-button>
+				<el-button type="primary" :loading="uploading" @click="submitUpload">上传并叠加</el-button>
+			</template>
+		</el-dialog>
 	</div>
 </template>
 
@@ -176,7 +234,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch 
 import * as Cesium from 'cesium';
 import { ElMessage } from 'element-plus';
 import { pageDjiDevice } from '/@/api/main/djiDevice';
-import { pageDjiMedia } from '/@/api/main/djiMedia';
+import { pageDjiMedia, uploadDjiMedia } from '/@/api/main/djiMedia';
 import { listDjiFlyZone } from '/@/api/main/djiFlyZone';
 import { useDeviceStore } from '/@/stores/useDeviceStore';
 import { useWorkspaceStore } from '/@/stores/useWorkspaceStore';
@@ -473,6 +531,115 @@ function setOverlay(m: MediaRow, on: boolean) {
 			overlayEntityMap.delete(m.uid);
 		}
 		m.overlay = false;
+	}
+}
+
+/* ------------------------------ 上传影像 ------------------------------ */
+
+const uploadVisible = ref(false);
+const uploading = ref(false);
+const uploadFile = ref<File | null>(null);
+const uploadFileList = ref<any[]>([]);
+const uploadForm = reactive({
+	longitude: undefined as number | undefined,
+	latitude: undefined as number | undefined,
+	relativeAltitude: 120,
+	gimbalYawDegree: 0,
+	mediaCreateTime: '' as string,
+	flightId: '',
+});
+
+function formatDateTime(d: Date) {
+	const pad = (n: number) => String(n).padStart(2, '0');
+	return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function openUpload() {
+	uploadFile.value = null;
+	uploadFileList.value = [];
+	uploadForm.longitude = undefined;
+	uploadForm.latitude = undefined;
+	uploadForm.relativeAltitude = 120;
+	uploadForm.gimbalYawDegree = 0;
+	uploadForm.mediaCreateTime = formatDateTime(new Date());
+	uploadForm.flightId = '';
+	uploadVisible.value = true;
+}
+
+function resetUploadPick() {
+	uploadFile.value = null;
+	uploadFileList.value = [];
+}
+
+function onUploadPick(file: any, files: any[]) {
+	const raw = file?.raw as File;
+	if (!raw) return;
+	if (!/\.(jpe?g|png|webp)$/i.test(raw.name)) {
+		ElMessage.warning('仅支持 JPG / PNG / WebP，多光谱请先导出假彩色图');
+		resetUploadPick();
+		return;
+	}
+	if (raw.size > 20 * 1024 * 1024) {
+		ElMessage.warning('单张影像不能超过 20MB');
+		resetUploadPick();
+		return;
+	}
+	uploadFile.value = raw;
+	uploadFileList.value = files.slice(-1);
+}
+
+function onUploadRemove() {
+	resetUploadPick();
+}
+
+function onUploadExceed(files: any[]) {
+	// 只能传一张，重复选择时用新文件替换旧文件
+	const raw = files[0] as File;
+	if (!raw) return;
+	uploadFile.value = raw;
+	uploadFileList.value = [{ name: raw.name, raw }];
+}
+
+async function submitUpload() {
+	if (!uploadFile.value) return ElMessage.warning('请选择影像文件');
+	const { longitude, latitude, relativeAltitude, gimbalYawDegree } = uploadForm;
+	if (longitude == null || latitude == null) return ElMessage.warning('请填写影像中心坐标');
+	if (longitude < -180 || longitude > 180 || latitude < -90 || latitude > 90) return ElMessage.warning('坐标超出范围');
+	if (longitude === 0 && latitude === 0) return ElMessage.warning('请填写有效坐标');
+
+	uploading.value = true;
+	try {
+		const res: any = await uploadDjiMedia(uploadFile.value, {
+			workspaceId: workspaceId.value,
+			longitude,
+			latitude,
+			relativeAltitude,
+			gimbalYawDegree,
+			mediaCreateTime: uploadForm.mediaCreateTime || undefined,
+			flightId: uploadForm.flightId || undefined,
+		});
+		const uploaded = res?.data?.result;
+		uploadVisible.value = false;
+		ElMessage.success('影像已上传');
+
+		if (uploaded?.objectKey) {
+			const row: MediaRow = {
+				...uploaded,
+				uid: uploaded.objectKey,
+				overlay: false,
+			};
+			mediaRows.value = [row, ...mediaRows.value.filter((m) => m.uid !== row.uid)];
+			syncMediaEntities();
+			if (!layers.imagery) onLayerChange('imagery', true);
+			setOverlay(row, true);
+			flyToPoint(row.longitude!, row.latitude!, 1600);
+		} else {
+			await loadMedia();
+		}
+	} catch (e) {
+		console.error('[imagery] 影像上传失败', e);
+	} finally {
+		uploading.value = false;
 	}
 }
 
@@ -1428,16 +1595,50 @@ onBeforeUnmount(() => {
 	padding: 2px 4px;
 }
 
+.imagery-head :deep(.el-button .el-icon) {
+	margin-right: 3px;
+}
+
+.imagery-head-actions {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+}
+
 .imagery-scroll {
 	flex: 1;
 	min-height: 60px;
 }
 
 .imagery-empty {
-	padding: 22px 0;
+	margin: 6px 2px;
+	padding: 18px 0 16px;
 	text-align: center;
-	font-size: 11px;
+	border: 1px dashed rgba(95, 208, 255, 0.22);
+	border-radius: 7px;
+	cursor: pointer;
+	transition: all 0.2s;
 	color: rgba(150, 195, 220, 0.45);
+
+	.el-icon {
+		font-size: 20px;
+		color: rgba(95, 208, 255, 0.5);
+	}
+
+	p {
+		margin: 6px 0 2px;
+		font-size: 11px;
+	}
+
+	span {
+		font-size: 10px;
+		color: rgba(150, 195, 220, 0.3);
+	}
+
+	&:hover {
+		border-color: rgba(63, 224, 255, 0.5);
+		background: rgba(63, 224, 255, 0.06);
+	}
 }
 
 .imagery-item {
@@ -1514,6 +1715,34 @@ onBeforeUnmount(() => {
 	font-size: 10px;
 	line-height: 1.5;
 	color: rgba(150, 195, 220, 0.38);
+}
+
+/* ---------- 上传弹窗 ---------- */
+.upload-drop :deep(.el-upload-dragger) {
+	padding: 20px 10px;
+}
+
+.upload-form {
+	margin-top: 14px;
+
+	:deep(.el-form-item) {
+		margin-bottom: 12px;
+	}
+
+	:deep(.el-input-number),
+	:deep(.el-date-editor.el-input) {
+		width: 230px;
+	}
+
+	:deep(.el-input) {
+		width: 100%;
+	}
+}
+
+.upload-unit {
+	margin-left: 8px;
+	font-size: 12px;
+	color: var(--el-text-color-secondary);
 }
 
 /* ---------- 读数与工具 ---------- */

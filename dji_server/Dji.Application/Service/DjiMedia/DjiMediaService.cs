@@ -17,6 +17,8 @@ using Dji.Application.Service.DjiMedia.Dto;
 using Dji.Application.Util;
 using Dji.Core;
 using Dji.Core.Enum.DjiEnum.Media;
+using Microsoft.AspNetCore.Http;
+using System.IO;
 using System.Linq;
 
 namespace Dji.Application.Service.DjiMedia;
@@ -30,9 +32,10 @@ namespace Dji.Application.Service.DjiMedia;
 /// （文件本体在对象存储里，本服务只管理元数据与访问地址）。
 /// </para>
 /// <para>
-/// <b>本服务是只读 + 删除</b>：不存在「新建媒体」的接口 —— 媒体只能由机场产生。
-/// 唯一的写操作是 <see cref="Prioritize"/>，它不改变文件本身，
-/// 只是请求机场把某个任务的媒体提前上传（<c>upload_flighttask_media_prioritize</c>）。
+/// <b>媒体有两个来源</b>：机场回传（<c>file_upload_callback</c>）与人工上传
+/// （<see cref="Upload"/>，用于正射 / 多光谱等成果图导入）。人工上传同样写入
+/// <c>dji_media_file</c>，因此列表、预览、地图叠加走的是同一套逻辑。
+/// <see cref="Prioritize"/> 只对机场回传的媒体有意义，不改变文件本身。
 /// </para>
 /// <para>
 /// <b>坐标不转换</b>：<c>Longitude</c> / <c>Latitude</c> 是 WGS84 原始值，
@@ -43,12 +46,16 @@ namespace Dji.Application.Service.DjiMedia;
 [ApiDescriptionSettings(ApplicationConst.GroupName, Order = 120)]
 public class DjiMediaService : IDynamicApiController, ITransient
 {
+    /// <summary>手工上传影像的大小上限（20MB）</summary>
+    private const long MaxManualUploadBytes = 20 * 1024 * 1024;
+
     private readonly SqlSugarRepository<DjiMediaFile> _mediaRep;
     private readonly SqlSugarRepository<Dji.Core.Entity.DjiDevice> _deviceRep;
     private readonly SqlSugarRepository<DjiWaylineTask> _taskRep;
     private readonly DjiMediaRepository _mediaRepository;
     private readonly MqttGatewayPublish _publish;
     private readonly DockQueryService _dockQuery;
+    private readonly DjiStorageService _storage;
     private readonly ILogger<DjiMediaService> _logger;
 
     public DjiMediaService(
@@ -58,6 +65,7 @@ public class DjiMediaService : IDynamicApiController, ITransient
         DjiMediaRepository mediaRepository,
         MqttGatewayPublish publish,
         DockQueryService dockQuery,
+        DjiStorageService storage,
         ILogger<DjiMediaService> logger)
     {
         _mediaRep = mediaRep;
@@ -66,6 +74,7 @@ public class DjiMediaService : IDynamicApiController, ITransient
         _mediaRepository = mediaRepository;
         _publish = publish;
         _dockQuery = dockQuery;
+        _storage = storage;
         _logger = logger;
     }
 
@@ -285,6 +294,72 @@ public class DjiMediaService : IDynamicApiController, ITransient
     #endregion
 
     #region 写入
+
+    /// <summary>
+    /// 手工上传影像（正射 / 多光谱成果导入）。
+    /// </summary>
+    /// <remarks>
+    /// 机场回传之外的第二个媒体入口：成果图由人工上传并填写中心坐标，
+    /// 落库后与机场媒体走同一套列表 / 预览 / 地图叠加逻辑。
+    /// 只接受浏览器可直接解码的格式 —— TIF / DNG 无法在 Cesium 里贴地渲染，
+    /// 多光谱请先在 GIS 侧合成假彩色（如 NDVI）再导出 JPG / PNG。
+    /// </remarks>
+    [HttpPost]
+    [ApiDescriptionSettings(Name = "Upload")]
+    public async Task<DjiMediaOutput> Upload([FromForm] MediaUploadInput input)
+    {
+        var file = input.File;
+        if (file is null || file.Length <= 0) throw Oops.Oh("请选择影像文件");
+        if (file.Length > MaxManualUploadBytes) throw Oops.Oh("影像不能超过 20MB");
+
+        var suffix = Path.GetExtension(file.FileName)?.ToLowerInvariant();
+        if (suffix is not (".jpg" or ".jpeg" or ".png" or ".webp"))
+            throw Oops.Oh("仅支持 JPG / PNG / WebP；多光谱请先合成假彩色（如 NDVI）后导出");
+
+        if (input.WorkspaceId.IsNullOrWhiteSpace()) throw Oops.Oh("缺少工作空间");
+        if (input.Longitude is null || input.Latitude is null) throw Oops.Oh("请填写影像中心坐标");
+        if (input.Longitude is < -180 or > 180 || input.Latitude is < -90 or > 90) throw Oops.Oh("坐标超出范围");
+        if (input.Longitude == 0 && input.Latitude == 0) throw Oops.Oh("请填写有效坐标");
+
+        var now = DateTime.Now;
+        var workspaceId = input.WorkspaceId.Trim();
+        var objectKey = $"{workspaceId}/media/{now:yyyy-MM-dd}/{now:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N")[..8]}{suffix}";
+
+        await using (var stream = file.OpenReadStream())
+        {
+            var uploaded = await _storage.UploadObjectAsync(objectKey, stream);
+            if (!uploaded) throw Oops.Oh("影像写入对象存储失败，请检查 MinIO / OSS 配置");
+        }
+
+        var entity = new DjiMediaFile
+        {
+            WorkspaceId = workspaceId,
+            ObjectKey = objectKey,
+            Bucket = _storage.Bucket,
+            FileName = file.FileName,
+            Suffix = suffix,
+            FileType = MediaFileTypeEnum.Image,
+            FileSize = file.Length,
+            IsOriginal = true,
+            Url = _storage.BuildFileUrl(objectKey),
+            MediaCreateTime = input.MediaCreateTime ?? now,
+            RelativeAltitude = input.RelativeAltitude,
+            AbsoluteAltitude = input.AbsoluteAltitude,
+            GimbalYawDegree = input.GimbalYawDegree,
+            Longitude = input.Longitude,
+            Latitude = input.Latitude,
+            FlightId = input.FlightId,
+            ReportTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+        };
+
+        await _mediaRep.InsertAsync(entity);
+        _logger.LogInformation("手工上传影像 {ObjectKey}（{Size} 字节，空间 {WorkspaceId}）",
+            objectKey, file.Length, workspaceId);
+
+        var output = entity.Adapt<DjiMediaOutput>();
+        FillDerived(output);
+        return output;
+    }
 
     /// <summary>删除媒体记录（批量）</summary>
     /// <remarks>

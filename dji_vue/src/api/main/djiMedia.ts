@@ -8,6 +8,7 @@ enum Api {
 	TaskOptions = '/api/djiMedia/taskOptions',
 	TypeOptions = '/api/djiMedia/typeOptions',
 	DockOptions = '/api/djiMedia/dockOptions',
+	Upload = '/api/djiMedia/upload',
 	Delete = '/api/djiMedia/delete',
 	Prioritize = '/api/djiMedia/prioritize',
 }
@@ -83,6 +84,29 @@ export const dockOptionsDjiMedia = (workspaceId?: string) =>
 		method: 'post',
 		data: { workspaceId },
 	});
+
+/**
+ * 手工上传影像（正射 / 多光谱成果导入）
+ * @description 只接受浏览器可直接渲染的 JPG / PNG / WebP；
+ * 中心坐标填 WGS84，相对高度与偏航角用于估算贴地覆盖范围
+ */
+export const uploadDjiMedia = (file: File, data: Record<string, any>) => {
+	const formData = new window.FormData();
+	formData.append('file', file);
+	Object.keys(data).forEach((key) => {
+		const value = data[key];
+		if (value === undefined || value === null || value === '') return;
+		formData.append(key, value);
+	});
+	return request({
+		url: Api.Upload,
+		method: 'post',
+		data: formData,
+		headers: {
+			'Content-type': 'multipart/form-data;charset=UTF-8',
+		},
+	});
+};
 
 /**
  * 删除媒体记录（批量）

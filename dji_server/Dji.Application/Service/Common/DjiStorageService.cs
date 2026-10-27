@@ -173,6 +173,22 @@ public class DjiStorageService(ILogger<DjiStorageService> logger, IOptions<OSSPr
     }
 
     /// <summary>
+    /// 上传对象到存储桶（后端自身产生的文件，如手工导入的影像）。
+    /// </summary>
+    /// <remarks>
+    /// 机场直传走 <c>storage_config_get</c> 下发凭证，后端自己写文件走这里，
+    /// 两条路径共用同一份 Bucket / 凭证配置，避免出现「机场传得进、手工传不进」。
+    /// </remarks>
+    public async Task<bool> UploadObjectAsync(string objectKey, Stream content)
+    {
+        if (!IsEnabled) throw Oops.Oh("对象存储未启用，请在 Upload.json 的 OSSProvider 段启用");
+        if (objectKey.IsNullOrWhiteSpace() || content == null) return false;
+
+        var client = ResolveClient() ?? throw Oops.Oh("对象存储客户端创建失败，请检查 Upload.json 配置");
+        return await client.PutObjectAsync(_oss.Bucket, objectKey.TrimStart('/'), content);
+    }
+
+    /// <summary>
     /// 拼接飞行区文件在桶里的 Key。
     /// </summary>
     /// <remarks>
