@@ -2,7 +2,6 @@
 	<el-main class="layout-main" :style="isFixedHeader ? `height: calc(100% - ${setMainHeight})` : `minHeight: calc(100% - ${setMainHeight})`">
 		<el-scrollbar ref="layoutMainScrollbarRef" class="layout-main-scroll layout-backtop-header-fixed" wrap-class="layout-main-scroll" view-class="layout-main-scroll">
 			<LayoutParentView />
-			<LayoutFooter v-if="isFooter" />
 		</el-scrollbar>
 		<el-backtop :target="setBacktopClass" />
 	</el-main>
@@ -10,7 +9,6 @@
 
 <script setup lang="ts" name="layoutMain">
 import { defineAsyncComponent, onMounted, computed, ref } from 'vue';
-import { useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { useTagsViewRoutes } from '../../stores/useTagsViewRoutes';
 import { useThemeConfigStore } from '../../stores/useThemeConfigStore';
@@ -18,20 +16,14 @@ import { NextLoading } from '/@/utils/loading';
 
 // 引入组件
 const LayoutParentView = defineAsyncComponent(() => import('/@/layout/routerView/parent.vue'));
-const LayoutFooter = defineAsyncComponent(() => import('/@/layout/footer/index.vue'));
 
 // 定义变量内容
 const layoutMainScrollbarRef = ref();
-const route = useRoute();
 const storesTagsViewRoutes = useTagsViewRoutes();
 const storesThemeConfig = useThemeConfigStore();
 const { themeConfig } = storeToRefs(storesThemeConfig);
 const { isTagsViewCurrenFull } = storeToRefs(storesTagsViewRoutes);
 
-// 设置 footer 显示/隐藏
-const isFooter = computed(() => {
-	return themeConfig.value.isFooter && !route.meta.isIframe;
-});
 // 设置 header 固定
 const isFixedHeader = computed(() => {
 	return themeConfig.value.isFixedHeader;
