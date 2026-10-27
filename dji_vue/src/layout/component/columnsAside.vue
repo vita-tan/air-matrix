@@ -79,7 +79,9 @@ const onColumnsAsideMenuClick = async (v: RouteItem) => {
 		if (route.path.startsWith(redirect)) mittBus.emit('setSendColumnsChildren', setSendChildren(redirect));
 		else router.push(redirect);
 	} else {
-		if (!v.children) {
+		// 后端菜单树的叶子节点会带 children: []，必须按叶子处理；
+		// 否则会走进“展开子级”分支，除空数组外什么都不做，点击无反应。
+		if (!v.children || v.children.length === 0) {
 			router.push(path);
 		} else {
 			// 显示子级菜单
@@ -92,7 +94,7 @@ const onColumnsAsideMenuClick = async (v: RouteItem) => {
 
 	// 一个路由设置自动收起菜单
 	// https://gitee.com/lyt-top/vue-next-admin/issues/I6HW7H
-	if (!v.children) themeConfig.value.isCollapse = true;
+	if (!v.children || v.children.length === 0) themeConfig.value.isCollapse = true;
 	else if (v.children.length > 1) themeConfig.value.isCollapse = false;
 };
 // 鼠标移入时，显示当前的子级菜单
