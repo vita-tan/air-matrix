@@ -33,9 +33,10 @@
     "IsEnableHttps": false, // 内网明文通信（nginx 在外层做 HTTPS 终止）
     "IsEnableCache": true,
     "Bucket": "dji-media", // 固定桶名，由 deploy/minio/init.sh 创建
-    // 【v2.1 新增】对外公开基址：nginx 把 MinIO 反代成 /minio path-style 的公网 HTTPS 地址。
-    // 机场直传 / 浏览器预览 / 预签名 URL 全部以此基址为前缀，绝不暴露内网 Endpoint。
-    // 留空则退回内网直拼（仅本地联调）。生产填：https://air-matrix.crmappai.xyz/minio
-    "PublicBaseUrl": "https://air-matrix.crmappai.xyz/minio"
+    // 【v2.2】对外公开基址：机场直传/浏览器预览都按 {PublicBaseUrl}/{bucket}/{key} 拼接。
+    // nginx 对 /dji-media/ 做「保留原始路径」的反代（不剥前缀），SigV4 的 CanonicalURI
+    // 才能与 MinIO 收到的路径一致；带 /minio 前缀的地址经 nginx 改路径后会 403 SignatureDoesNotMatch。
+    // 留空则退回内网直拼（仅本地联调）。生产填：https://air-matrix.crmappai.xyz
+    "PublicBaseUrl": "https://air-matrix.crmappai.xyz"
   }
 }

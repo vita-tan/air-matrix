@@ -46,7 +46,7 @@ cp dji_server/docs/config-template/* deploy/config/
 | 文件 | 必改项 |
 |---|---|
 | `Database.json` | `ConnectionString` 中 `<POSTGRES_PASSWORD>` → 真实口令（两库都改）；Host 保持 `air-matrix-postgres` |
-| `Upload.json` | `AccessKey`/`SecretKey` → `djicloud` 账号；`PublicBaseUrl` 保持 `https://air-matrix.crmappai.xyz/minio` |
+| `Upload.json` | `AccessKey`/`SecretKey` → `djicloud` 账号；`PublicBaseUrl` 保持 `https://air-matrix.crmappai.xyz`（不带 `/minio`，否则机场直传签名失败） |
 | `Dji.json` | `AppId/AppKey/AppLicense` 填大疆真实值；`Mqtt.Username/Password` 与 `.env` 一致；`FileBaseUrl`/`Live.*` 保持公网地址 |
 | `JWT.json` | `IssuerSigningKey` → 取 `.env` 的 `JWT_SIGNING_KEY`（64 位十六进制） |
 | `App.json` | `Cryptogram.PublicKey/PrivateKey` → 新生成的 SM2 密钥对（私钥仅此文件） |
@@ -111,7 +111,7 @@ docker compose run --rm air-matrix-certbot renew --webroot -w /var/www/certbot \
 - [ ] `https://air-matrix.crmappai.xyz/kapi` Swagger 可访问（iframe 菜单「系统接口」指向该地址）。
 - [ ] 外网 MQTT：`mosquitto_pub -h air-matrix.crmappai.xyz -p 1883 -u <MQTT_USERNAME> -P <MQTT_PASSWORD> -t test -m hi` 成功。
 - [ ] RTMP：`ffmpeg -re -i test.mp4 -c copy -f flv rtmp://air-matrix.crmappai.xyz:1935/live/dji_test` 推流，浏览器经 `/live/dji_test.flv` 可拉流。
-- [ ] MinIO：`https://air-matrix.crmappai.xyz/minio/dji-media/...` 匿名可下载；预签名 PUT 可上传。
+- [ ] MinIO：`https://air-matrix.crmappai.xyz/dji-media/...` 匿名可下载；用 `djicloud` AK/SK 对该地址做 SigV4 PUT 返回 200（实机上传同路径）。
 - [ ] PG：`docker compose exec air-matrix-postgres psql -U dji -d dji_admin -c '\dt'` 能看到业务表。
 - [ ] 大疆控制台绑定真机：MQTT 地址 `air-matrix.crmappai.xyz:1883`，填 App ID/Key/License，NTP `ntp.aliyun.com`。
 
